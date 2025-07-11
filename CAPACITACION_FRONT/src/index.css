@@ -1,0 +1,6 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+/*  Sin bloque @apply — evitamos el error px-2  */
