@@ -155,11 +155,6 @@ export default function App() {
               </select>
             </>
           )}
-          <ToggleTabs
-            active={vista}
-            onChange={setVista}
-            className="ml-auto"
-          />
         </div>
         
         {sinDatos && (
@@ -167,26 +162,35 @@ export default function App() {
         )}
         
         {!sinDatos && capaSeleccionada && (
-          <div className="flex flex-col gap-4 items-center w-full">
+          <div className="flex flex-col gap-4">
+            {/* Toggle alineado a la izquierda encima de la tabla */}
+            <div className="flex w-full mb-2">
+              <ToggleTabs
+                active={vista}
+                onChange={setVista}
+              />
+            </div>
             {/* Contenedor de asistencias o evaluaciones */}
-            <div className="inline-block bg-white rounded-lg shadow p-2">
+            <div className="rounded-lg p-2 bg-transparent flex flex-col items-start">
               {vista === "asist" && <AsistenciasTable postCtx={post} compact />}
               {vista === "eval" && <EvaluacionesTable postCtx={post} compact />}
-            </div>
-            {/* Contenedor de deserciones y resumen lado a lado */}
-            <div className="flex flex-row gap-4 items-start justify-center w-full">
-              <div className="inline-block bg-white rounded-lg shadow p-2">
-                <DesercionesTable postCtx={post} />
-                <div className="flex items-center gap-1 mt-2 mb-2 ml-2">
+              {vista === "asist" && (
+                <div className="flex items-center gap-1 mt-1 mb-2 ml-2">
                   <button
                     onClick={guardar}
-                    className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm font-semibold shadow-none border border-gray-300"
+                    className="bg-[#ffb347] hover:bg-[#ffa500] text-white px-6 py-2 rounded-xl text-base font-semibold transition-all duration-200 shadow-md focus:outline-none focus:ring-2 focus:ring-[#ffe5b4] border border-[#e0d7ce]"
                   >
                     Guardar
                   </button>
                 </div>
+              )}
+            </div>
+            {/* Contenedor de deserciones y resumen lado a lado */}
+            <div className="flex flex-row gap-4 items-start w-full">
+              <div className="inline-block rounded-lg p-2 bg-transparent">
+                <DesercionesTable postCtx={post} />
               </div>
-              <div className="inline-block bg-white rounded-lg shadow p-2 align-top">
+              <div className="inline-block rounded-lg p-2 bg-transparent align-top">
                 <ResumenCard postCtx={post} capInfo={{
                   nombres: localStorage.getItem('nombres'),
                   apellidoPaterno: localStorage.getItem('apellidoPaterno'),

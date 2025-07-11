@@ -13,8 +13,12 @@ module.exports = {
     "bg-gray-50",
     "hover:bg-gray-100",
     "bg-white",
-    "shadow",
-    "rounded-lg"
+    "bg-opacity-20",
+    "border-white",
+    "border-opacity-20",
+    "shadow-lg",
+    "rounded-xl",
+    "backdrop-blur-md"
   ],
   theme: {
     extend: {}

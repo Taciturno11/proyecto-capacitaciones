@@ -4,15 +4,16 @@ export default function ToggleTabs({ active, onChange }) {
     { id: "eval",  label: "Evaluaciones" }
   ];
   return (
-    <div className="flex border rounded overflow-hidden">
+    <div className="flex rounded-xl overflow-hidden bg-white/30 backdrop-blur-sm">
       {tabs.map(t => (
         <button
           key={t.id}
           onClick={() => onChange(t.id)}
-          className={`px-4 py-2 text-sm font-medium transition
+          className={`px-5 py-2 text-sm font-semibold transition-all duration-200 focus:outline-none 
             ${active === t.id
-              ? "bg-green-600 text-white"
-              : "bg-gray-200 hover:bg-gray-300"}`}
+              ? "bg-green-500/90 text-white shadow-sm"
+              : "bg-white/70 text-gray-800 hover:bg-white/90"}
+            rounded-xl`}
         >
           {t.label}
         </button>

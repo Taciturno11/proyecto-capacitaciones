@@ -21,8 +21,8 @@ export default function EvaluacionesTable({ postCtx }) {
   const personasActivas = tablaDatos.filter(p => !deserciones.some(d => d.postulante_dni === p.dni));
 
   return (
-    <div className="mt-6 overflow-x-auto rounded-lg shadow bg-white">
-      <table className="min-w-full text-sm">
+    <div className="mt-6 overflow-x-auto rounded-xl p-2 bg-transparent">
+      <table className="min-w-full text-sm rounded-xl border border-white border-opacity-20 bg-white bg-opacity-20 backdrop-blur-md overflow-hidden">
         <thead>
           <tr>
             <th className="px-4 py-2 bg-indigo-100 text-indigo-900 text-left font-semibold border-b border-indigo-200">Nombre</th>
@@ -40,7 +40,7 @@ export default function EvaluacionesTable({ postCtx }) {
             const promedioDisplay = promedio ? promedio : "---";
             const promedioClass = obtenerClaseColor(promedio);
             return (
-              <tr key={p.dni} className="odd:bg-gray-50 hover:bg-gray-100 transition">
+              <tr key={p.dni} className="bg-white">
                 <td className="border px-4 py-2 text-left">{p.nombre}</td>
                 <td className="border px-4 py-2">{p.dni}</td>
                 <td className="border px-4 py-2">{p.numero}</td>
