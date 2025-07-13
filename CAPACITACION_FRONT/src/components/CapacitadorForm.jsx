@@ -83,7 +83,7 @@ export default function CapacitadorForm({ onValidated }) {
           </div>
           <div className="flex flex-col">
             <label className="text-sm font-medium">Campaña</label>
-            <select value={campania} onChange={handleCampaniaChange} className="border p-2 min-w-[10rem]">
+            <select value={campania} onChange={handleCampaniaChange} className="border p-2 min-w-[10rem]" style={{ backgroundColor: '#dbeafe' }}>
               {campanias.map(c => (
                 <option key={c} value={c}>{c}</option>
               ))}

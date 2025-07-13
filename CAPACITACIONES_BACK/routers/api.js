@@ -20,6 +20,60 @@ const DURACION = {
   "Portabilidad PPA"  : { cap:5 , ojt:5 }
 };
 
+/* Función para normalizar nombres de campaña (compatible hacia atrás) */
+function normalizarCampania(nombre) {
+  if (!nombre) return nombre;
+  
+  // Convertir a minúsculas y eliminar espacios extra
+  let normalizado = nombre.toLowerCase().trim().replace(/\s+/g, ' ');
+  
+  // Mapeo de variaciones comunes (mantiene compatibilidad)
+  const variaciones = {
+    'unificado': 'Unificado',
+    'renovacion': 'Renovacion',
+    'renovación': 'Renovacion',
+    'ventas hogar inb': 'Ventas Hogar INB',
+    'ventas hogar out': 'Ventas Hogar OUT',
+    'ventas movil inb': 'Ventas Movil INB',
+    'ventas móvil inb': 'Ventas Movil INB',
+    'portabilidad post': 'Portabilidad POST',
+    'portabilidad ppa': 'Portabilidad PPA',
+    'migracion': 'Migracion',
+    'migración': 'Migracion'
+  };
+  
+  // Si existe una variación conocida, usar el nombre canónico
+  if (variaciones[normalizado]) {
+    return variaciones[normalizado];
+  }
+  
+  // Si no hay variación conocida, devolver el original
+  return nombre;
+}
+
+/* Función para obtener duración de campaña (con normalización) */
+function obtenerDuracion(campania) {
+  if (!campania) return { cap:5, ojt:5 };
+  
+  // Intentar búsqueda directa primero (para compatibilidad)
+  if (DURACION[campania]) {
+    console.log(`[DURACION] Búsqueda directa exitosa: "${campania}"`);
+    return DURACION[campania];
+  }
+  
+  // Si no encuentra, normalizar y buscar
+  const campaniaNormalizada = normalizarCampania(campania);
+  const resultado = DURACION[campaniaNormalizada] || { cap:5, ojt:5 };
+  
+  if (campaniaNormalizada !== campania) {
+    console.log(`[DURACION] Normalización aplicada: "${campania}" → "${campaniaNormalizada}" → ${JSON.stringify(resultado)}`);
+  } else {
+    console.log(`[DURACION] No se encontró duración para: "${campania}" → usando fallback ${JSON.stringify(resultado)}`);
+  }
+  
+  return resultado;
+}
+
 /* Helper: new Request() con pool global */
 const R = () => new sql.Request();
 
@@ -130,7 +184,7 @@ router.get('/postulantes', authMiddleware, async (req, res) => {
     res.json({
       postulantes : post.recordset,
       asistencias : asis.recordset,
-      duracion    : DURACION[campania] || { cap:5, ojt:5 }
+      duracion    : obtenerDuracion(campania)
     });
   } catch (e) { console.error(e); res.sendStatus(500); }
 });
@@ -140,6 +194,7 @@ router.get('/deserciones', authMiddleware, async (req, res) => {
   const dniCap = req.user.dni;
   const { campania, mes, capa } = req.query;
   try {
+    console.log('GET /deserciones params:', { dniCap, campania, mes, capa });
     const { recordset } = await R()
       .input("dniCap", sql.VarChar(20), dniCap)
       .input("camp",   sql.VarChar(100), campania)
@@ -155,11 +210,11 @@ router.get('/deserciones', authMiddleware, async (req, res) => {
         FROM Deserciones_Formacion d
         JOIN Postulantes_En_Formacion p ON p.DNI = d.postulante_dni
         WHERE p.DNI_Capacitador = @dniCap
-          AND p.Campaña = @camp
           AND FORMAT(p.FechaInicio,'yyyy-MM') = @prefijo
           AND d.capa_numero = @capa
         ORDER BY d.fecha_desercion
       `);
+    console.log('GET /deserciones resultado:', recordset);
     res.json(recordset);
   } catch (e) { console.error(e); res.sendStatus(500); }
 });
@@ -172,6 +227,38 @@ router.post('/deserciones/bulk', authMiddleware, async (req, res) => {
   const tx = new sql.Transaction(sql.globalConnection);
   await tx.begin();
   try {
+    // Obtener lista de postulantes y capas del lote recibido
+    const dniList = req.body.map(r => r.postulante_dni);
+    const capaList = req.body.map(r => r.capa_numero);
+
+    // Obtener todas las deserciones actuales para esos postulantes/capas
+    const { recordset: desercionesActuales } = await tx.request()
+      .query(`
+        SELECT postulante_dni, capa_numero
+        FROM Deserciones_Formacion
+        WHERE postulante_dni IN (${dniList.map(d => `'${d}'`).join(',')})
+          AND capa_numero IN (${capaList.join(',')})
+      `);
+
+    // Calcular cuáles deben eliminarse
+    const desercionesAEliminar = desercionesActuales.filter(d =>
+      !req.body.some(r => r.postulante_dni === d.postulante_dni && r.capa_numero === d.capa_numero)
+    );
+
+    // Eliminar de la BD y poner FechaCese en NULL
+    for (const d of desercionesAEliminar) {
+      await tx.request()
+        .input("dni", sql.VarChar(20), d.postulante_dni)
+        .input("capa", sql.Int, d.capa_numero)
+        .query(`
+          DELETE FROM Deserciones_Formacion
+          WHERE postulante_dni = @dni AND capa_numero = @capa;
+          UPDATE Postulantes_En_Formacion
+          SET FechaCese = NULL
+          WHERE DNI = @dni;
+        `);
+    }
+
     for (const r of req.body) {
       // Log de depuración detallado
       console.log("Procesando deserción:", {
@@ -182,10 +269,22 @@ router.post('/deserciones/bulk', authMiddleware, async (req, res) => {
         tipo_capa_numero: typeof r.capa_numero
       });
       
+      // Si motivo es vacío, undefined o null, guardar como null; si tiene texto, guardar el texto
+      let motivoSeguro = null;
+      if (typeof r.motivo === 'string' && r.motivo.trim() !== '') {
+        motivoSeguro = r.motivo;
+      }
+      // Log detallado para depuración
+      console.log('Guardando deserción:', {
+        dni: r.postulante_dni,
+        fecha: r.fecha_desercion,
+        motivo: motivoSeguro,
+        capa: r.capa_numero
+      });
       await tx.request()
         .input("dni",      sql.VarChar(20),   r.postulante_dni)
         .input("fechaDes", sql.Date,          r.fecha_desercion)
-        .input("mot",      sql.NVarChar(250), r.motivo || "")
+        .input("mot",      sql.NVarChar(250), motivoSeguro)
         .input("capa",     sql.Int,           r.capa_numero)
         .query(`
 MERGE Deserciones_Formacion AS T
@@ -196,6 +295,23 @@ WHEN MATCHED THEN
 WHEN NOT MATCHED THEN
   INSERT (postulante_dni,capa_numero,fecha_desercion,motivo)
   VALUES (@dni,@capa,@fechaDes,@mot);
+        `);
+      // ELIMINAR ASISTENCIAS POSTERIORES A LA FECHA DE DESERCIÓN
+      await tx.request()
+        .input("dni", sql.VarChar(20), r.postulante_dni)
+        .input("fechaDes", sql.Date, r.fecha_desercion)
+        .query(`
+          DELETE FROM Asistencia_Formacion
+          WHERE postulante_dni = @dni AND fecha > @fechaDes;
+        `);
+      // ACTUALIZAR FECHA DE CESE EN POSTULANTES
+      await tx.request()
+        .input("dni", sql.VarChar(20), r.postulante_dni)
+        .input("fechaCese", sql.Date, r.fecha_desercion)
+        .query(`
+          UPDATE Postulantes_En_Formacion
+          SET FechaCese = @fechaCese
+          WHERE DNI = @dni
         `);
     }
     await tx.commit();
@@ -295,7 +411,36 @@ router.post('/asistencia/bulk', authMiddleware, async (req, res) => {
         etapa: r.etapa,
         estado_asistencia: r.estado_asistencia
       });
-      
+
+      // Si el nuevo estado NO es 'D', eliminar deserción y poner FechaCese en NULL si existe
+      if (r.estado_asistencia !== 'D') {
+        // Buscar si existe una deserción para este postulante y capa
+        // Necesitamos saber el número de capa, asumimos que viene en r.capa_numero
+        // Si no viene, intentar deducirlo (puedes ajustar esto según tu modelo de datos)
+        let capa_numero = r.capa_numero;
+        if (typeof capa_numero === 'undefined') {
+          // Buscar la capa por la fecha de inicio del postulante
+          const capaRes = await tx.request()
+            .input('dni', sql.VarChar(20), r.postulante_dni)
+            .input('fecha', sql.Date, r.fecha)
+            .query(`
+              SELECT capa_numero FROM Deserciones_Formacion
+              WHERE postulante_dni = @dni
+            `);
+          capa_numero = capaRes.recordset[0]?.capa_numero;
+        }
+        if (capa_numero) {
+          // Eliminar deserción y poner FechaCese en NULL si existe
+          await tx.request()
+            .input('dni', sql.VarChar(20), r.postulante_dni)
+            .input('capa', sql.Int, capa_numero)
+            .query(`
+              DELETE FROM Deserciones_Formacion WHERE postulante_dni = @dni AND capa_numero = @capa;
+              UPDATE Postulantes_En_Formacion SET FechaCese = NULL WHERE DNI = @dni;
+            `);
+        }
+      }
+      // Guardar la asistencia como siempre
       await tx.request()
         .input("dni",    sql.VarChar(20), r.postulante_dni)
         .input("fecha",  sql.Date,        r.fecha)

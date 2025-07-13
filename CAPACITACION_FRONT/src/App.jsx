@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useRef, useState, useEffect } from "react";
 import ToggleTabs        from "./components/ToggleTabs";
 import AsistenciasTable  from "./components/AsistenciasTable";
 import EvaluacionesTable from "./components/EvaluacionesTable";
@@ -42,6 +42,26 @@ export default function App() {
   const post = usePostulantes();
   const [sinDatos, setSinDatos] = useState(false);
   const [campaniaSeleccionada, setCampaniaSeleccionada] = useState("");
+  const [showResumen, setShowResumen] = useState(false);
+  const resumenBtnRef = useRef(null);
+  const resumenPopoverRef = useRef(null);
+
+  // Cerrar el popover al hacer clic fuera
+  useEffect(() => {
+    if (!showResumen) return;
+    function handleClick(e) {
+      if (
+        resumenPopoverRef.current &&
+        !resumenPopoverRef.current.contains(e.target) &&
+        resumenBtnRef.current &&
+        !resumenBtnRef.current.contains(e.target)
+      ) {
+        setShowResumen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showResumen]);
 
   // Al iniciar, busca todas las capas disponibles para el capacitador
   useEffect(() => {
@@ -123,7 +143,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#297373] to-[#FE7F2D] flex flex-col p-0 m-0">
       {/* Barra superior translúcida - Toggle alineado a la derecha del saludo */}
-      <div className="flex justify-between items-center px-6 py-2 bg-white/10 backdrop-blur-lg shadow-md rounded-b-3xl mb-2">
+      <div className="flex justify-between items-center px-6 py-2 bg-white/10 backdrop-blur-lg shadow-md rounded-b-3xl mb-2 relative">
         {/* Logo y saludo */}
         <div className="flex items-center gap-3">
           <img src="/partner.svg" alt="logo" className="w-8 h-8 bg-white/30 rounded-full p-1" />
@@ -131,9 +151,39 @@ export default function App() {
             `${localStorage.getItem('nombres') || ''} ${localStorage.getItem('apellidoPaterno') || ''} ${localStorage.getItem('apellidoMaterno') || ''}`.trim()
           } 👋</span></span>
         </div>
-        {/* ToggleTabs al centro-derecha */}
-        <div className="flex-1 flex justify-center">
+        {/* ToggleTabs al centro-derecha y botón Ver Resumen */}
+        <div className="flex-1 flex justify-center items-center gap-4 relative">
           <ToggleTabs active={vista} onChange={setVista} />
+          <button
+            ref={resumenBtnRef}
+            onClick={() => setShowResumen(v => !v)}
+            className="ml-4 px-4 py-1.5 rounded-full bg-white/80 text-[#297373] font-semibold shadow hover:bg-white transition border border-[#e0d7ce] focus:outline-none"
+          >
+            Ver Resumen
+          </button>
+          {/* Popover del resumen */}
+          {showResumen && (
+            <div
+              ref={resumenPopoverRef}
+              className="absolute z-50 top-full left-1/2 -translate-x-1/2 mt-2 w-[340px] bg-white rounded-xl shadow-2xl border border-gray-200 p-0"
+            >
+              <div className="flex items-center justify-between px-6 pt-4 pb-0">
+                <span className="text-2xl font-bold text-gray-800">Resumen</span>
+                <button
+                  onClick={() => setShowResumen(false)}
+                  className="text-gray-400 hover:text-gray-700 text-2xl font-bold focus:outline-none"
+                  aria-label="Cerrar"
+                >
+                  ×
+                </button>
+              </div>
+              <ResumenCard postCtx={post} capInfo={{
+                nombres: localStorage.getItem('nombres'),
+                apellidoPaterno: localStorage.getItem('apellidoPaterno'),
+                apellidoMaterno: localStorage.getItem('apellidoMaterno'),
+              }} campania={capaSeleccionada?.campania} hideTitle />
+            </div>
+          )}
         </div>
         {/* Botón cerrar sesión */}
         <button onClick={handleLogout} className="bg-gradient-to-r from-[#297373] to-[#FE7F2D] text-white px-4 py-1.5 rounded-full font-semibold text-sm shadow hover:opacity-90 transition">Cerrar sesión</button>
@@ -145,6 +195,7 @@ export default function App() {
             <>
               {/* Select de campaña */}
               <select
+                style={{ backgroundColor: '#dbeafe' }}
                 className="px-2 py-1 text-sm rounded border focus:outline-none focus:ring"
                 value={campaniaSeleccionada}
                 onChange={e => setCampaniaSeleccionada(e.target.value)}
@@ -155,6 +206,7 @@ export default function App() {
               </select>
               {/* Select de capa/fecha */}
               <select
+                style={{ backgroundColor: '#dbeafe' }}
                 className="px-2 py-1 text-sm rounded border focus:outline-none focus:ring"
                 value={capaSeleccionada?.capa || ""}
                 onChange={e => {
@@ -174,34 +226,37 @@ export default function App() {
         )}
         {!sinDatos && capaSeleccionada && (
           <div className="flex flex-col gap-2">
-            {/* El ToggleTabs ya no está aquí */}
             {/* Contenedor de asistencias o evaluaciones */}
-            <div className="rounded-lg p-2 bg-transparent flex flex-col items-start">
-              {vista === "asist" && <AsistenciasTable postCtx={post} compact />}
-              {vista === "eval" && <EvaluacionesTable postCtx={post} compact />}
-              {vista === "asist" && (
-                <div className="flex items-center gap-1 mt-1 mb-2 ml-2">
-                  <button
-                    onClick={guardar}
-                    className="bg-[#ffb347] hover:bg-[#ffa500] text-white px-6 py-2 rounded-xl text-base font-semibold transition-all duration-200 shadow-md focus:outline-none focus:ring-2 focus:ring-[#ffe5b4] border border-[#e0d7ce]"
-                  >
-                    Guardar
-                  </button>
-                </div>
-              )}
-            </div>
-            {/* Contenedor de deserciones y resumen lado a lado */}
             <div className="flex flex-row gap-4 items-start w-full">
-              <div className="inline-block rounded-lg p-2 bg-transparent">
-                <DesercionesTable postCtx={post} />
+              <div
+                className="flex-1 rounded-lg p-2 bg-transparent"
+                style={{}}
+              >
+                {vista === "asist" && <AsistenciasTable
+                  postCtx={post}
+                  compact
+                  dniCap={dniCap}
+                  campania={campaniaSeleccionada}
+                  mes={capaSeleccionada?.fechaInicio?.slice(0, 7)}
+                  fechaInicio={capaSeleccionada?.fechaInicio}
+                  capaNum={capaSeleccionada?.capa}
+                />}
+                {vista === "eval" && <EvaluacionesTable postCtx={post} compact />}
+                {(vista === "asist" || vista === "eval") && (
+                  <div className="flex items-center gap-1 mt-1 mb-2 ml-2">
+                    <button
+                      onClick={guardar}
+                      className="bg-[#ffb347] hover:bg-[#ffa500] text-white px-6 py-2 rounded-xl text-base font-semibold transition-all duration-200 shadow-md focus:outline-none focus:ring-2 focus:ring-[#ffe5b4] border border-[#e0d7ce]"
+                    >
+                      Guardar
+                    </button>
+                  </div>
+                )}
               </div>
-              <div className="inline-block rounded-lg p-2 bg-transparent align-top">
-                <ResumenCard postCtx={post} capInfo={{
-                  nombres: localStorage.getItem('nombres'),
-                  apellidoPaterno: localStorage.getItem('apellidoPaterno'),
-                  apellidoMaterno: localStorage.getItem('apellidoMaterno'),
-                }} campania={capaSeleccionada.campania} />
-              </div>
+            </div>
+            {/* Tabla de deserciones siempre debajo */}
+            <div className="inline-block rounded-lg p-2 bg-transparent w-full">
+              <DesercionesTable postCtx={post} />
             </div>
           </div>
         )}

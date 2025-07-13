@@ -48,12 +48,18 @@ export default function usePostulantes() {
     setCapaNum(capaNum);
 
     // Tabla base
-    const tabla = postulantes.map(p => ({
-      ...p,
-      numero      : p.telefono || "",
-      asistencia  : d.map(() => ""),
-      bloqueada   : false // para bloqueo tras deserción
-    }));
+    const tabla = postulantes.map(p => {
+      // Si el postulante ya tiene asistencias previas, recórtalas o rellénalas
+      let asistencia = Array.isArray(p.asistencia) ? [...p.asistencia] : d.map(() => "");
+      if (asistencia.length > d.length) asistencia = asistencia.slice(0, d.length);
+      if (asistencia.length < d.length) asistencia = [...asistencia, ...Array(d.length - asistencia.length).fill("")];
+      return {
+        ...p,
+        numero      : p.telefono || "",
+        asistencia,
+        bloqueada   : false // para bloqueo tras deserción
+      };
+    });
     // Asistencias previas
     const posDni = Object.fromEntries(tabla.map((p,i)=>[p.dni,i]));
     const posF   = Object.fromEntries(d.map((x,i)=>[x,i]));

@@ -1,4 +1,4 @@
-export default function ResumenCard({ postCtx, capInfo, campania }) {
+export default function ResumenCard({ postCtx, capInfo, campania, hideTitle }) {
   const { tablaDatos, deserciones } = postCtx;
   if (!tablaDatos.length) return null;
 
@@ -7,10 +7,16 @@ export default function ResumenCard({ postCtx, capInfo, campania }) {
   const activos = total - bajas;
 
   return (
-    <div className="mt-6 md:w-80 p-6 rounded-xl">
+    <div className="mt-0 md:w-80 p-6 rounded-xl">
       <div className="rounded-xl backdrop-blur-md p-0 border-0">
-        <h2 className="text-2xl font-bold text-gray-800 bg-white rounded-t-xl p-4">Resumen</h2>
-        <table className="table-fixed w-full text-sm border-collapse border border-gray-200">
+        <table className="table-fixed w-full text-sm border-collapse border border-gray-200 rounded-b-xl overflow-hidden">
+          <thead>
+            {!hideTitle && (
+              <tr>
+                <th colSpan={2} className="text-2xl font-bold text-gray-800 bg-white rounded-t-xl p-4 text-left">Resumen</th>
+              </tr>
+            )}
+          </thead>
           <tbody>
             <tr className="h-12 bg-white">
               <td className="border border-gray-200 px-3 py-2 font-semibold text-gray-700">Capacitador</td>

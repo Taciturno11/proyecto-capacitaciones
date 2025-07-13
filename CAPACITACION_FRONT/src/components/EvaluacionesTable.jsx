@@ -21,17 +21,17 @@ export default function EvaluacionesTable({ postCtx }) {
   const personasActivas = tablaDatos.filter(p => !deserciones.some(d => d.postulante_dni === p.dni));
 
   return (
-    <div className="mt-6 overflow-x-auto rounded-xl p-2 bg-transparent">
-      <table className="min-w-full text-sm rounded-xl border border-white border-opacity-20 bg-white bg-opacity-20 backdrop-blur-md overflow-hidden">
+    <div className="overflow-x-auto rounded-xl p-2 bg-transparent">
+      <table className="min-w-full text-sm rounded-xl overflow-hidden bg-white/80">
         <thead>
           <tr>
-            <th className="px-4 py-2 bg-indigo-100 text-indigo-900 text-left font-semibold border-b border-indigo-200">Nombre</th>
-            <th className="px-4 py-2 bg-indigo-100 text-indigo-900 text-left font-semibold border-b border-indigo-200">DNI</th>
-            <th className="px-4 py-2 bg-indigo-100 text-indigo-900 text-left font-semibold border-b border-indigo-200">Número</th>
+            <th className="px-4 py-2 bg-[#f5ede6] text-[#3d3d3d] text-left font-semibold border-b border-[#e0d7ce]">Nombre</th>
+            <th className="px-4 py-2 bg-[#f5ede6] text-[#3d3d3d] text-left font-semibold border-b border-[#e0d7ce]">DNI</th>
+            <th className="px-4 py-2 bg-[#f5ede6] text-[#3d3d3d] text-left font-semibold border-b border-[#e0d7ce]">Número</th>
             {dias.slice(0, capCount).map((d, i) => (
-              <th key={d} className="px-2 py-1 bg-gray-50 text-gray-700 border-b border-gray-200 text-center">Día {i + 1}<br />{d}</th>
+              <th key={d} className={`px-2 py-1 text-[#3d3d3d] border-b border-[#e0d7ce] text-center ${i < capCount ? 'bg-[#ffe5b4]' : 'bg-[#c8ecd9]'}`}>Día {i + 1}<br />{d}</th>
             ))}
-            <th className="border bg-yellow-300 text-center font-bold">Promedio<br />Actual</th>
+            <th className="border bg-[#fff7e6] text-center font-bold text-[#3d3d3d]">Promedio<br />Actual</th>
           </tr>
         </thead>
         <tbody>
@@ -40,7 +40,7 @@ export default function EvaluacionesTable({ postCtx }) {
             const promedioDisplay = promedio ? promedio : "---";
             const promedioClass = obtenerClaseColor(promedio);
             return (
-              <tr key={p.dni} className="bg-white">
+              <tr key={p.dni} className="bg-[#f9f6f2]/80">
                 <td className="border px-4 py-2 text-left">{p.nombre}</td>
                 <td className="border px-4 py-2">{p.dni}</td>
                 <td className="border px-4 py-2">{p.numero}</td>
@@ -48,7 +48,7 @@ export default function EvaluacionesTable({ postCtx }) {
                   const ev = evaluaciones.find(e => e.postulante_dni === p.dni && e.fecha_evaluacion === d);
                   const val = ev ? ev.nota : "";
                   return (
-                    <td key={d} className="border px-2 bg-indigo-50">
+                    <td key={d} className={`border px-2 min-w-[105px] ${i < capCount ? 'bg-[#fff7e6]' : 'bg-[#c8ecd9]'}`}> 
                       <input
                         type="number" min="0" max="20" step="0.1"
                         className="w-full text-center outline-none bg-transparent"
@@ -58,7 +58,7 @@ export default function EvaluacionesTable({ postCtx }) {
                     </td>
                   );
                 })}
-                <td className={`border px-2 bg-yellow-50 text-center ${promedioClass}`}>{promedioDisplay}</td>
+                <td className={`border px-2 bg-[#fff7e6] text-center ${promedioClass}`}>{promedioDisplay}</td>
               </tr>
             );
           })}

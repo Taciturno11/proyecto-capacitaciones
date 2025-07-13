@@ -114,7 +114,8 @@ export default function SelectorBar({ capInfo, campania, onLoteCargado }) {
   return (
     <div className="flex flex-wrap items-center gap-4">
       <select value={mes} onChange={e => setMes(e.target.value)}
-              className="border p-2 min-w-[8rem]">
+              className="border border-gray-300 rounded-xl px-4 py-2 min-w-[8rem] shadow-md focus:outline-none focus:ring-2 focus:ring-primary-400 text-gray-900"
+              style={{ backgroundColor: '#e6f4ea' }}>
         <option value="">Mes</option>
         {meses.map(m => (
           <option key={m} value={m}>
@@ -126,7 +127,8 @@ export default function SelectorBar({ capInfo, campania, onLoteCargado }) {
 
       {capas.length > 0 && (
         <select value={capa} onChange={e => setCapa(e.target.value)}
-                className="border p-2 min-w-[8rem]">
+                className="border border-gray-300 rounded-xl px-4 py-2 min-w-[8rem] shadow-md focus:outline-none focus:ring-2 focus:ring-primary-400 text-gray-900"
+                style={{ backgroundColor: '#e6f4ea' }}>
           <option value="">Selecciona capa</option>
           {capas.map(c => (
             <option key={c.capa} value={c.capa}>
