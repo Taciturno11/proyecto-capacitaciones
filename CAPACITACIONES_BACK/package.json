@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "setup": "node setup-env.js",
+    "start": "node server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

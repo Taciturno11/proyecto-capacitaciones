@@ -15,7 +15,13 @@ function getDniFromToken() {
     const payload = JSON.parse(atob(token.split('.')[1]));
     if (!payload.dni) throw new Error('No dni');
     return payload.dni;
-  } catch {
+  } catch (error) {
+    console.error('Error al decodificar token:', error);
+    // Limpiar token inválido
+    localStorage.removeItem('token');
+    localStorage.removeItem('nombres');
+    localStorage.removeItem('apellidoPaterno');
+    localStorage.removeItem('apellidoMaterno');
     return null;
   }
 }
@@ -39,6 +45,8 @@ export default function App() {
 
   // Al iniciar, busca todas las capas disponibles para el capacitador
   useEffect(() => {
+    if (!dniCap) return; // No hacer la llamada si no hay DNI válido
+    
     api(`/api/capas?dniCap=${dniCap}`)
       .then(data => {
         setCapas(data);
@@ -114,20 +122,25 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#297373] to-[#FE7F2D] flex flex-col p-0 m-0">
-      {/* Barra superior translúcida - Reducida */}
-      <div className="flex justify-between items-center px-6 py-2 bg-white/10 backdrop-blur-lg shadow-md rounded-b-3xl mb-4">
+      {/* Barra superior translúcida - Toggle alineado a la derecha del saludo */}
+      <div className="flex justify-between items-center px-6 py-2 bg-white/10 backdrop-blur-lg shadow-md rounded-b-3xl mb-2">
+        {/* Logo y saludo */}
         <div className="flex items-center gap-3">
           <img src="/partner.svg" alt="logo" className="w-8 h-8 bg-white/30 rounded-full p-1" />
           <span className="font-semibold text-white text-base drop-shadow">Hola, bienvenido <span className="font-bold">{
             `${localStorage.getItem('nombres') || ''} ${localStorage.getItem('apellidoPaterno') || ''} ${localStorage.getItem('apellidoMaterno') || ''}`.trim()
           } 👋</span></span>
         </div>
+        {/* ToggleTabs al centro-derecha */}
+        <div className="flex-1 flex justify-center">
+          <ToggleTabs active={vista} onChange={setVista} />
+        </div>
+        {/* Botón cerrar sesión */}
         <button onClick={handleLogout} className="bg-gradient-to-r from-[#297373] to-[#FE7F2D] text-white px-4 py-1.5 rounded-full font-semibold text-sm shadow hover:opacity-90 transition">Cerrar sesión</button>
       </div>
-      
       {/* Contenido principal compacto */}
       <div className="w-full flex flex-col gap-1 items-start justify-start p-0 m-0 overflow-hidden">
-        <div className="flex flex-wrap items-center gap-3 mb-3 px-4">
+        <div className="flex flex-wrap items-center gap-3 mb-1 px-4">
           {capas.length > 1 && capaSeleccionada && (
             <>
               {/* Select de campaña */}
@@ -156,20 +169,12 @@ export default function App() {
             </>
           )}
         </div>
-        
         {sinDatos && (
           <div className="text-center text-gray-500 text-base mt-6">No tienes datos de asistencias para mostrar.</div>
         )}
-        
         {!sinDatos && capaSeleccionada && (
-          <div className="flex flex-col gap-4">
-            {/* Toggle alineado a la izquierda encima de la tabla */}
-            <div className="flex w-full mb-2">
-              <ToggleTabs
-                active={vista}
-                onChange={setVista}
-              />
-            </div>
+          <div className="flex flex-col gap-2">
+            {/* El ToggleTabs ya no está aquí */}
             {/* Contenedor de asistencias o evaluaciones */}
             <div className="rounded-lg p-2 bg-transparent flex flex-col items-start">
               {vista === "asist" && <AsistenciasTable postCtx={post} compact />}

@@ -9,27 +9,35 @@ export default function AsistenciasTable({ postCtx, compact }) {
   const selectBase = manyColumns ? "w-full h-full px-0.5 py-0.5 min-w-0 focus:outline-none bg-transparent text-xs" : compact ? "w-full h-full px-1 py-0.5 min-w-0 focus:outline-none bg-transparent text-xs" : "w-full h-full px-1 focus:outline-none bg-transparent";
 
   return (
-    
     <div className="rounded-xl w-full p-2 bg-transparent shadow-md">
-      <table className="min-w-full text-sm rounded-xl overflow-hidden">
+      <table className="min-w-full text-sm rounded-t-xl overflow-hidden">
         <thead>
           <tr>
-            <th rowSpan={2} className={`${thBase} bg-[#ffe5b4] text-[#3d3d3d] text-left font-semibold border-b border-[#e0d7ce] min-w-[240px]`}>Nombre</th>
-            <th rowSpan={2} className={`${thBase} bg-[#ffe5b4] text-[#3d3d3d] text-center font-semibold border-b border-[#e0d7ce] min-w-[90px]`}>DNI</th>
+            {/* Nombre y DNI con fondo beige claro y texto centrado */}
+            <th rowSpan={2} className={`${thBase} bg-[#f5ede6] text-[#3d3d3d] text-center font-semibold border-b border-[#e0d7ce] min-w-[240px] rounded-tl-xl`}>Nombre</th>
+            <th rowSpan={2} className={`${thBase} bg-[#f5ede6] text-[#3d3d3d] text-center font-semibold border-b border-[#e0d7ce] min-w-[90px]`}>DNI</th>
+            {/* Capacitación y OJT */}
             <th colSpan={capCount}
                 className={`${thBase} bg-[#ffe5b4] text-[#3d3d3d] text-center font-semibold border-b border-[#e0d7ce]`}>
               – Capacitación +
             </th>
             {dias.length > capCount && (
               <th colSpan={dias.length - capCount}
-                  className={`${thBase} bg-[#e6f4ea] text-[#3d3d3d] text-center font-semibold border-b border-[#e0d7ce]`}>
+                  className={`${thBase} bg-[#e6f4ea] text-[#3d3d3d] text-center font-semibold border-b border-[#e0d7ce] rounded-tr-xl`}>
                 – OJT +
               </th>
             )}
           </tr>
           <tr>
+            {/* Días de capacitación con fondo amarillo, OJT con verde */}
             {dias.map((f, i) => (
-              <th key={f} className={`${compact ? "px-2 py-1 min-w-[105px]" : "px-2 py-1 min-w-[105px]"} bg-[#f5ede6] text-[#3d3d3d] border-b border-[#e0d7ce]`}>
+              <th
+                key={f}
+                className={
+                  `${compact ? "px-2 py-1 min-w-[105px]" : "px-2 py-1 min-w-[105px]"} text-[#3d3d3d] border-b border-[#e0d7ce] text-center ` +
+                  (i < capCount ? "bg-[#fff7e6]" : "bg-[#e6f4ea]")
+                }
+              >
                 Día {i + 1}<br />{f}
               </th>
             ))}
