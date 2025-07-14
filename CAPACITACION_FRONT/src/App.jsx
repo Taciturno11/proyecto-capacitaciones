@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import ToggleTabs        from "./components/ToggleTabs";
 import AsistenciasTable  from "./components/AsistenciasTable";
 import EvaluacionesTable from "./components/EvaluacionesTable";
@@ -7,6 +7,8 @@ import ResumenCard       from "./components/ResumenCard";
 import usePostulantes    from "./hooks/usePostulantes";
 import Login from "./components/Login";
 import { api } from "./utils/api";
+import { createPortal } from "react-dom";
+import { descargarExcel } from "./utils/excel";
 
 function getDniFromToken() {
   const token = localStorage.getItem('token');
@@ -45,6 +47,7 @@ export default function App() {
   const [showResumen, setShowResumen] = useState(false);
   const resumenBtnRef = useRef(null);
   const resumenPopoverRef = useRef(null);
+  const [resumenPos, setResumenPos] = useState({ top: 80, left: window.innerWidth / 2 });
 
   // Cerrar el popover al hacer clic fuera
   useEffect(() => {
@@ -117,6 +120,16 @@ export default function App() {
     });
   }, [capaSeleccionada]);
 
+  useEffect(() => {
+    if (showResumen && resumenBtnRef.current) {
+      const rect = resumenBtnRef.current.getBoundingClientRect();
+      setResumenPos({
+        top: rect.bottom + 8 + window.scrollY, // 8px de margen
+        left: rect.left + rect.width / 2 + window.scrollX
+      });
+    }
+  }, [showResumen]);
+
   if (!token || !dniCap) {
     localStorage.removeItem('token');
     localStorage.removeItem('nombre');
@@ -143,50 +156,58 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#297373] to-[#FE7F2D] flex flex-col p-0 m-0">
       {/* Barra superior translúcida - Toggle alineado a la derecha del saludo */}
-      <div className="flex justify-between items-center px-6 py-2 bg-white/10 backdrop-blur-lg shadow-md rounded-b-3xl mb-2 relative">
+      <div className="flex items-center px-6 py-2 bg-white/10 backdrop-blur-lg shadow-md rounded-b-3xl mb-2 relative" style={{ minHeight: 60 }}>
         {/* Logo y saludo */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-shrink-0">
           <img src="/partner.svg" alt="logo" className="w-8 h-8 bg-white/30 rounded-full p-1" />
           <span className="font-semibold text-white text-base drop-shadow">Hola, bienvenido <span className="font-bold">{
             `${localStorage.getItem('nombres') || ''} ${localStorage.getItem('apellidoPaterno') || ''} ${localStorage.getItem('apellidoMaterno') || ''}`.trim()
           } 👋</span></span>
         </div>
-        {/* ToggleTabs al centro-derecha y botón Ver Resumen */}
-        <div className="flex-1 flex justify-center items-center gap-4 relative">
+        {/* ToggleTabs y Ver Resumen juntos, centrados */}
+        <div className="absolute left-[47%] top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-4">
           <ToggleTabs active={vista} onChange={setVista} />
           <button
             ref={resumenBtnRef}
             onClick={() => setShowResumen(v => !v)}
-            className="ml-4 px-4 py-1.5 rounded-full bg-white/80 text-[#297373] font-semibold shadow hover:bg-white transition border border-[#e0d7ce] focus:outline-none"
+            className="ml-8 px-4 py-1.5 rounded-full bg-white/80 text-[#297373] font-semibold shadow hover:bg-white transition border border-[#e0d7ce] focus:outline-none"
           >
             Ver Resumen
           </button>
-          {/* Popover del resumen */}
-          {showResumen && (
-            <div
-              ref={resumenPopoverRef}
-              className="absolute z-50 top-full left-1/2 -translate-x-1/2 mt-2 w-[340px] bg-white rounded-xl shadow-2xl border border-gray-200 p-0"
-            >
-              <div className="flex items-center justify-between px-6 pt-4 pb-0">
-                <span className="text-2xl font-bold text-gray-800">Resumen</span>
-                <button
-                  onClick={() => setShowResumen(false)}
-                  className="text-gray-400 hover:text-gray-700 text-2xl font-bold focus:outline-none"
-                  aria-label="Cerrar"
-                >
-                  ×
-                </button>
-              </div>
-              <ResumenCard postCtx={post} capInfo={{
-                nombres: localStorage.getItem('nombres'),
-                apellidoPaterno: localStorage.getItem('apellidoPaterno'),
-                apellidoMaterno: localStorage.getItem('apellidoMaterno'),
-              }} campania={capaSeleccionada?.campania} hideTitle />
+          {/* Indicadores de bajas y activos a la derecha del botón */}
+          <div className="flex items-center gap-2 ml-4">
+            {/* Activos primero */}
+            <div className="flex flex-col items-center">
+              <span className="text-sm text-gray-700 font-semibold mb-1">Activos</span>
+              <span className="flex items-center gap-1 text-emerald-500 font-bold text-lg">
+                <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M10 16V6m0 0l-4 4m4-4l4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                {post.tablaDatos.length - post.deserciones.length}
+                <span className="text-xs text-emerald-500 font-semibold ml-1">
+                  {post.tablaDatos.length > 0 ? Math.round(((post.tablaDatos.length - post.deserciones.length) / post.tablaDatos.length) * 100) : 0}%
+                </span>
+              </span>
             </div>
-          )}
+            {/* Bajas después */}
+            <div className="flex flex-col items-center">
+              <span className="text-sm text-gray-700 font-semibold mb-1">Bajas</span>
+              <span className="flex items-center gap-1 text-rose-600 font-bold text-lg">
+                <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M10 4v10m0 0l-4-4m4 4l4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                {post.deserciones.length}
+                <span className="text-xs text-rose-600 font-semibold ml-1">
+                  {post.tablaDatos.length > 0 ? Math.round((post.deserciones.length / post.tablaDatos.length) * 100) : 0}%
+                </span>
+              </span>
+            </div>
+          </div>
         </div>
-        {/* Botón cerrar sesión */}
-        <button onClick={handleLogout} className="bg-gradient-to-r from-[#297373] to-[#FE7F2D] text-white px-4 py-1.5 rounded-full font-semibold text-sm shadow hover:opacity-90 transition">Cerrar sesión</button>
+        {/* Botón cerrar sesión a la derecha */}
+        <div className="flex-1 flex justify-end items-center gap-4">
+          <button onClick={handleLogout} className="bg-gradient-to-r from-[#297373] to-[#FE7F2D] text-white px-4 py-1.5 rounded-full font-semibold text-sm shadow hover:opacity-90 transition">Cerrar sesión</button>
+        </div>
       </div>
       {/* Contenido principal compacto */}
       <div className="w-full flex flex-col gap-1 items-start justify-start p-0 m-0 overflow-hidden">
@@ -250,6 +271,12 @@ export default function App() {
                     >
                       Guardar
                     </button>
+                    <button
+                      onClick={() => descargarExcel({ tablaDatos: post.tablaDatos, dias: post.dias, capCount: post.capCount })}
+                      className="bg-blue-400 hover:bg-blue-500 text-white px-6 py-2 rounded-xl text-base font-semibold transition-all duration-200 shadow-md focus:outline-none focus:ring-2 focus:ring-blue-200 border border-blue-200 ml-2"
+                    >
+                      Descargar Excel
+                    </button>
                   </div>
                 )}
               </div>
@@ -259,6 +286,30 @@ export default function App() {
               <DesercionesTable postCtx={post} />
             </div>
           </div>
+        )}
+        {showResumen && createPortal(
+          <div
+            ref={resumenPopoverRef}
+            className="z-[999] w-[340px] bg-white rounded-xl shadow-2xl border border-gray-200 p-0"
+            style={{ position: 'fixed', top: resumenPos.top, left: resumenPos.left, transform: 'translateX(-50%)' }}
+          >
+            <div className="flex items-center justify-between px-6 pt-4 pb-0">
+              <span className="text-2xl font-bold text-gray-800">Resumen</span>
+              <button
+                onClick={() => setShowResumen(false)}
+                className="text-gray-400 hover:text-gray-700 text-2xl font-bold focus:outline-none"
+                aria-label="Cerrar"
+              >
+                ×
+              </button>
+            </div>
+            <ResumenCard postCtx={post} capInfo={{
+              nombres: localStorage.getItem('nombres'),
+              apellidoPaterno: localStorage.getItem('apellidoPaterno'),
+              apellidoMaterno: localStorage.getItem('apellidoMaterno'),
+            }} campania={capaSeleccionada?.campania} hideTitle />
+          </div>,
+          document.body
         )}
       </div>
     </div>

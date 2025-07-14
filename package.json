@@ -3,6 +3,7 @@
     "concurrently": "^9.2.0"
   },
   "dependencies": {
-    "@headlessui/react": "^2.2.4"
+    "@headlessui/react": "^2.2.4",
+    "exceljs": "^4.4.0"
   }
 }

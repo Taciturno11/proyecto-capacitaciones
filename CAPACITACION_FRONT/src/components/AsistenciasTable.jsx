@@ -1,10 +1,48 @@
-import { useState } from "react";
+import React, { useState, useRef } from "react";
+import { createPortal } from "react-dom";
+
+function PopoverPortal({ anchorRef, children, open }) {
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
+  const popoverRef = useRef(null);
+
+  // Calcular posición cuando se abre
+  React.useLayoutEffect(() => {
+    if (open && anchorRef.current) {
+      const rect = anchorRef.current.getBoundingClientRect();
+      setPos({
+        top: rect.bottom + window.scrollY + 4, // 4px de margen
+        left: rect.left + window.scrollX + rect.width / 2,
+        width: rect.width
+      });
+    }
+  }, [open, anchorRef]);
+
+  if (!open) return null;
+  return createPortal(
+    <div
+      ref={popoverRef}
+      style={{
+        position: "absolute",
+        top: pos.top,
+        left: pos.left,
+        transform: "translateX(-50%)",
+        zIndex: 9999,
+        minWidth: 260,
+        maxWidth: 320
+      }}
+    >
+      {children}
+    </div>,
+    document.body
+  );
+}
 
 export default function AsistenciasTable({ postCtx, compact, dniCap, campania, mes, fechaInicio, capaNum }) {
   const { dias, tablaDatos, setAsistencia, capCount, loadLote } = postCtx;
   const [popover, setPopover] = useState({ open: false, row: null, col: null });
   const [motivo, setMotivo] = useState("");
   const [guardando, setGuardando] = useState(false);
+  const popoverAnchorRefs = useRef({}); // {row_col: ref}
   if (!tablaDatos.length) return null;
 
   const estados = ["", "A", "J", "T", "F", "Deserción"];
@@ -104,6 +142,7 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, campania, m
                 – OJT +
               </th>
             )}
+            <th rowSpan={2} className={`${thBase} bg-[#a6d4f2] text-[#1e3a5c] text-center font-semibold border-b border-[#e0d7ce] min-w-[120px]`}>Resultado Final</th>
           </tr>
           <tr>
             {/* Días de capacitación con fondo amarillo, OJT con verde */}
@@ -153,9 +192,14 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, campania, m
                   const disabled = tieneDesercion && c !== idxDesercion;
                   // Fondo gris más oscuro si tiene deserción
                   const darkBg = tieneDesercion ? "bg-gray-400 text-[#3d3d3d]" : "bg-[#f9f6f2]/80";
+                  const cellKey = `${r}_${c}`;
+                  if (!popoverAnchorRefs.current[cellKey]) {
+                    popoverAnchorRefs.current[cellKey] = React.createRef();
+                  }
                   return (
                     <td key={c} className={`${tdBase} min-w-[105px] ${darkBg}`} style={{ position: 'relative' }}>
                       <select
+                        ref={popoverAnchorRefs.current[cellKey]}
                         value={valor}
                         onChange={e => {
                           if (e.target.value === "Deserción") {
@@ -170,9 +214,12 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, campania, m
                       >
                         {estados.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
-                      {/* Popover para motivo de deserción */}
-                      {popover.open && popover.row === r && popover.col === c && (
-                        <div className="absolute z-20 left-1/2 top-full mt-2 -translate-x-1/2 bg-white border border-gray-300 rounded-lg shadow-lg p-4 w-64 flex flex-col">
+                      {/* Popover para motivo de deserción usando portal */}
+                      <PopoverPortal
+                        anchorRef={popoverAnchorRefs.current[cellKey]}
+                        open={popover.open && popover.row === r && popover.col === c}
+                      >
+                        <div className="z-20 bg-white border border-gray-300 rounded-lg shadow-lg p-4 w-64 flex flex-col">
                           <label className="mb-2 font-semibold text-sm text-gray-700">Motivo de la deserción:</label>
                           <textarea
                             className="border rounded p-1 mb-2 text-sm resize-none"
@@ -195,10 +242,30 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, campania, m
                             >Cancelar</button>
                           </div>
                         </div>
-                      )}
+                      </PopoverPortal>
                     </td>
                   );
                 })}
+                {/* Resultado Final */}
+                <td className={`${tdBase} text-center ${tieneDesercion ? 'bg-gray-400 text-[#3d3d3d]' : ''}`}>
+                  <select
+                    className={`${selectBase} rounded text-sm ${tieneDesercion ? 'bg-gray-400 text-[#3d3d3d] cursor-not-allowed' : ''}`}
+                    value={p.resultadoFinal || ''}
+                    onChange={e => {
+                      const val = e.target.value;
+                      postCtx.setTablaDatos(t => {
+                        const copy = [...t];
+                        copy[r] = { ...copy[r], resultadoFinal: val };
+                        return copy;
+                      });
+                    }}
+                    disabled={tieneDesercion}
+                  >
+                    <option value=""></option>
+                    <option value="Contratado">✅ Contratado</option>
+                    <option value="Desaprobado">❌ Desaprobado</option>
+                  </select>
+                </td>
               </tr>
             );
           })}

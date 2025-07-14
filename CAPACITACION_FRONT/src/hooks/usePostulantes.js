@@ -57,7 +57,8 @@ export default function usePostulantes() {
         ...p,
         numero      : p.telefono || "",
         asistencia,
-        bloqueada   : false // para bloqueo tras deserción
+        bloqueada   : false, // para bloqueo tras deserción
+        resultadoFinal: p.EstadoPostulante || ""
       };
     });
     // Asistencias previas
@@ -171,7 +172,7 @@ export default function usePostulantes() {
     setDirty(true);
   };
 
-  // Guardar todo (asistencia+deserciones+evaluaciones)
+  // Guardar todo (asistencia+deserciones+evaluaciones+resultadoFinal)
   const guardarCambios = async params => {
     const { fechaInicio } = params;
     // Payloads
@@ -201,12 +202,23 @@ export default function usePostulantes() {
       .filter(e => e.nota != null)
       .map(e => ({ ...e, fechaInicio }));
 
+    // NUEVO: Payload para resultado final
+    const payloadEstados = tablaDatos
+      .filter(p => p.resultadoFinal && !p.bloqueada)
+      .map(p => {
+        if (p.resultadoFinal === 'Desaprobado') {
+          return { dni: p.dni, estado: p.resultadoFinal, fechaCese: dias[dias.length - 1] };
+        }
+        return { dni: p.dni, estado: p.resultadoFinal };
+      });
+
     // LOGS DE DEPURACIÓN
     console.log("Asistencias a enviar:", payloadA);
     console.log("Deserciones a enviar:", desToSend);
     console.log("Evaluaciones a enviar:", payloadE);
+    console.log("Estados finales a enviar:", payloadEstados);
 
-    if (!payloadA.length && !desToSend.length && !payloadE.length) {
+    if (!payloadA.length && !desToSend.length && !payloadE.length && !payloadEstados.length) {
       alert("Nada por guardar");
       return;
     }
@@ -218,6 +230,8 @@ export default function usePostulantes() {
         { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(desToSend) });
       if (payloadE.length) await api("/api/evaluaciones/bulk",
         { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payloadE) });
+      if (payloadEstados.length) await api("/api/postulantes/estado",
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payloadEstados) });
 
       setDirty(false);
       alert("Cambios guardados ✔️");
@@ -234,5 +248,6 @@ export default function usePostulantes() {
     dias, capCount, tablaDatos, evaluaciones, deserciones, dirty,
     loadLote, setAsistencia, setNota, setDesMotivo, guardarCambios,
     refreshOJT, downloadExcel,
+    setTablaDatos // <-- AGREGADO para exponer el setter
   };
 }

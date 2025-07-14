@@ -156,7 +156,8 @@ router.get('/postulantes', authMiddleware, async (req, res) => {
       .query(`
         SELECT DNI AS dni,
                CONCAT(Nombres,' ',ApellidoPaterno,' ',ApellidoMaterno) AS nombre,
-               Telefono AS telefono
+               Telefono AS telefono,
+               EstadoPostulante
         FROM Postulantes_En_Formacion
         WHERE DNI_Capacitador       = @dniCap
           AND Campaña               = @camp
@@ -295,6 +296,14 @@ WHEN MATCHED THEN
 WHEN NOT MATCHED THEN
   INSERT (postulante_dni,capa_numero,fecha_desercion,motivo)
   VALUES (@dni,@capa,@fechaDes,@mot);
+        `);
+      // NUEVO: Actualizar EstadoPostulante a 'Desertó'
+      await tx.request()
+        .input("dni", sql.VarChar(20), r.postulante_dni)
+        .query(`
+          UPDATE Postulantes_En_Formacion
+          SET EstadoPostulante = 'Desertó'
+          WHERE DNI = @dni
         `);
       // ELIMINAR ASISTENCIAS POSTERIORES A LA FECHA DE DESERCIÓN
       await tx.request()
@@ -540,5 +549,50 @@ function authMiddleware(req, res, next) {
     return res.status(401).json({ error: 'Token inválido o expirado' });
   }
 }
+
+// Endpoint para actualizar el estado final de los postulantes
+router.post('/postulantes/estado', async (req, res) => {
+  // Espera un array: [{ dni, estado }]
+  const tx = new sql.Transaction(sql.globalConnection);
+  await tx.begin();
+  try {
+    for (const p of req.body) {
+      if (p.estado === 'Desaprobado' && p.fechaCese) {
+        await tx.request()
+          .input("dni", sql.VarChar(20), p.dni)
+          .input("estado", sql.VarChar(20), p.estado)
+          .input("fechaCese", sql.Date, p.fechaCese)
+          .query(`
+            UPDATE Postulantes_En_Formacion
+            SET EstadoPostulante = @estado, FechaCese = @fechaCese
+            WHERE DNI = @dni
+          `);
+      } else if (p.estado === 'Contratado') {
+        await tx.request()
+          .input("dni", sql.VarChar(20), p.dni)
+          .input("estado", sql.VarChar(20), p.estado)
+          .query(`
+            UPDATE Postulantes_En_Formacion
+            SET EstadoPostulante = @estado, FechaCese = NULL
+            WHERE DNI = @dni
+          `);
+      } else {
+        await tx.request()
+          .input("dni", sql.VarChar(20), p.dni)
+          .input("estado", sql.VarChar(20), p.estado)
+          .query(`
+            UPDATE Postulantes_En_Formacion
+            SET EstadoPostulante = @estado
+            WHERE DNI = @dni
+          `);
+      }
+    }
+    await tx.commit();
+    res.json({ ok: true });
+  } catch (e) {
+    await tx.rollback();
+    res.status(500).json({ error: "No se pudo actualizar el estado final", details: e.message });
+  }
+});
 
 module.exports = router;

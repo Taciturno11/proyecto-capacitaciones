@@ -12,7 +12,7 @@ export default function DesercionesTable({ postCtx }) {
       <div className="w-full">
         <div className="flex items-center gap-2 mb-2 justify-center">
           <span className="flex-1 h-px bg-gray-200"></span>
-          <span className="text-lg font-bold text-[#3d3d3d] tracking-wide whitespace-nowrap">Tabla de deserciones</span>
+          <span className="text-lg font-bold text-white tracking-wide whitespace-nowrap">Tabla de deserciones</span>
           <span className="flex-1 h-px bg-gray-200"></span>
         </div>
       </div>
