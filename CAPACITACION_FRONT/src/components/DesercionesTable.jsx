@@ -1,6 +1,16 @@
 export default function DesercionesTable({ postCtx }) {
   const { deserciones } = postCtx;
-  if (!deserciones.length) {
+  // Elimina duplicados por dni + fecha + capa_numero
+  const desercionesUnicas = [];
+  const seen = new Set();
+  for (const d of deserciones) {
+    const key = `${d.postulante_dni}-${d.fecha_desercion}-${d.capa_numero || ''}`;
+    if (!seen.has(key)) {
+      desercionesUnicas.push(d);
+      seen.add(key);
+    }
+  }
+  if (!desercionesUnicas.length) {
     return (
       <div className="inline-block bg-white rounded-xl border border-gray-200 p-4">
         <p className="text-sm italic text-gray-500 m-0">Sin deserciones registradas</p>
@@ -27,8 +37,8 @@ export default function DesercionesTable({ postCtx }) {
           </tr>
         </thead>
         <tbody>
-          {deserciones.map(d => (
-            <tr key={d.postulante_dni} className="bg-white">
+          {desercionesUnicas.map(d => (
+            <tr key={d.postulante_dni + '-' + (d.capa_numero || '') + '-' + d.fecha_desercion} className="bg-white">
               <td className="border px-2 py-0 w-[340px] whitespace-nowrap truncate">{d.nombre}</td>
               <td className="border px-4 py-0 w-auto text-center">{d.postulante_dni}</td>
               <td className="border px-4 py-0 w-auto text-center">{d.numero}</td>

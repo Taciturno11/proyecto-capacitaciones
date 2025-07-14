@@ -2,8 +2,19 @@ export default function ResumenCard({ postCtx, capInfo, campania, hideTitle }) {
   const { tablaDatos, deserciones } = postCtx;
   if (!tablaDatos.length) return null;
 
+  // Filtrar deserciones únicas por dni+fecha+capa_numero
+  const desercionesUnicas = [];
+  const seen = new Set();
+  for (const d of deserciones) {
+    const key = `${d.postulante_dni}-${d.fecha_desercion}-${d.capa_numero || ''}`;
+    if (!seen.has(key)) {
+      desercionesUnicas.push(d);
+      seen.add(key);
+    }
+  }
+
   const total = tablaDatos.length;
-  const bajas = deserciones.length;
+  const bajas = desercionesUnicas.length;
   const activos = total - bajas;
 
   return (
@@ -34,11 +45,11 @@ export default function ResumenCard({ postCtx, capInfo, campania, hideTitle }) {
             </tr>
             <tr className="h-12 bg-red-100">
               <td className="border border-gray-200 px-3 py-2 font-semibold text-gray-700">Deserciones/Bajas</td>
-              <td className="border border-gray-200 px-3 py-2 text-center text-gray-900">{bajas}</td>
+              <td className="border border-gray-200 px-3 py-2 text-center text-gray-900 font-bold">{bajas}</td>
             </tr>
             <tr className="h-12 bg-green-100">
               <td className="border border-gray-200 px-3 py-2 font-semibold text-gray-700">Activos</td>
-              <td className="border border-gray-200 px-3 py-2 text-center text-gray-900">{activos}</td>
+              <td className="border border-gray-200 px-3 py-2 text-center text-gray-900 font-bold">{activos}</td>
             </tr>
           </tbody>
         </table>

@@ -184,7 +184,8 @@ export default function usePostulantes() {
             postulante_dni: p.dni,
             fecha: dias[i],
             etapa: i < capCount ? "Capacitacion" : "OJT",
-            estado_asistencia: est === "Deserción" ? "D" : est
+            estado_asistencia: est === "Deserción" ? "D" : est,
+            capa_numero: capaNum // <--- AGREGADO
           });
         }
       });
@@ -207,9 +208,9 @@ export default function usePostulantes() {
       .filter(p => p.resultadoFinal && !p.bloqueada)
       .map(p => {
         if (p.resultadoFinal === 'Desaprobado') {
-          return { dni: p.dni, estado: p.resultadoFinal, fechaCese: dias[dias.length - 1] };
+          return { dni: p.dni, estado: p.resultadoFinal, fechaCese: dias[dias.length - 1], campania: params.campania, fecha_inicio: params.fechaInicio };
         }
-        return { dni: p.dni, estado: p.resultadoFinal };
+        return { dni: p.dni, estado: p.resultadoFinal, campania: params.campania, fecha_inicio: params.fechaInicio };
       });
 
     // LOGS DE DEPURACIÓN

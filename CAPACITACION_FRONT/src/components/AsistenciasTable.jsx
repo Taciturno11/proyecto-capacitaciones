@@ -62,7 +62,8 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, campania, m
         postulante_dni: p.dni,
         fecha: dias[popover.col],
         etapa: popover.col < capCount ? "Capacitacion" : "OJT",
-        estado_asistencia: "D"
+        estado_asistencia: "D",
+        capa_numero: p.capa_numero || capaNum || 1
       }];
       try {
         await fetch("/api/asistencia/bulk", {
@@ -81,6 +82,8 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, campania, m
           fecha_desercion: dias[popover.col],
           motivo,
           capa_numero: p.capa_numero || capaNum || 1,
+          campania: campania, // <--- AGREGADO
+          fecha_inicio: fechaInicio, // <--- AGREGADO
           guardado: false
         }];
         await fetch("/api/deserciones/bulk", {

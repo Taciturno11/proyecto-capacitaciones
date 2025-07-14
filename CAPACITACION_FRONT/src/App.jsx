@@ -9,6 +9,7 @@ import Login from "./components/Login";
 import { api } from "./utils/api";
 import { createPortal } from "react-dom";
 import { descargarExcel } from "./utils/excel";
+import DashboardCoordinadora from "./components/DashboardCoordinadora";
 
 function getDniFromToken() {
   const token = localStorage.getItem('token');
@@ -36,6 +37,7 @@ function getMostRecentCapa(capas) {
 export default function App() {
   const token = localStorage.getItem('token');
   const dniCap = getDniFromToken();
+  const rol = localStorage.getItem('rol');
 
   // Todos los hooks deben ir antes de cualquier return condicional
   const [capas, setCapas] = useState([]);
@@ -136,6 +138,10 @@ export default function App() {
     return <Login />;
   }
 
+  if (rol === "coordinadora") {
+    return <DashboardCoordinadora />;
+  }
+
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('nombre');
@@ -152,6 +158,21 @@ export default function App() {
       capaNum: capaSeleccionada.capa
     });
   };
+
+  // Filtrar deserciones únicas para el resumen (por dni+fecha+capa_numero)
+  const desercionesUnicas = [];
+  const seen = new Set();
+  for (const d of post.deserciones) {
+    const key = `${d.postulante_dni}-${d.fecha_desercion}-${d.capa_numero || ''}`;
+    if (!seen.has(key)) {
+      desercionesUnicas.push(d);
+      seen.add(key);
+    }
+  }
+  const bajas = desercionesUnicas.length;
+  const activos = post.tablaDatos.length - bajas;
+  const porcentajeBajas = post.tablaDatos.length > 0 ? Math.round((bajas / post.tablaDatos.length) * 100) : 0;
+  const porcentajeActivos = post.tablaDatos.length > 0 ? Math.round((activos / post.tablaDatos.length) * 100) : 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#297373] to-[#FE7F2D] flex flex-col p-0 m-0">
@@ -183,9 +204,9 @@ export default function App() {
                 <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M10 16V6m0 0l-4 4m4-4l4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
-                {post.tablaDatos.length - post.deserciones.length}
+                {activos}
                 <span className="text-xs text-emerald-500 font-semibold ml-1">
-                  {post.tablaDatos.length > 0 ? Math.round(((post.tablaDatos.length - post.deserciones.length) / post.tablaDatos.length) * 100) : 0}%
+                  {porcentajeActivos}%
                 </span>
               </span>
             </div>
@@ -196,9 +217,9 @@ export default function App() {
                 <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M10 4v10m0 0l-4-4m4 4l4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
-                {post.deserciones.length}
+                {bajas}
                 <span className="text-xs text-rose-600 font-semibold ml-1">
-                  {post.tablaDatos.length > 0 ? Math.round((post.deserciones.length / post.tablaDatos.length) * 100) : 0}%
+                  {porcentajeBajas}%
                 </span>
               </span>
             </div>

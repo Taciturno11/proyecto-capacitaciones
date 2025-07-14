@@ -28,6 +28,7 @@ export default function Login() {
       localStorage.setItem('nombres', data.nombres);
       localStorage.setItem('apellidoPaterno', data.apellidoPaterno);
       localStorage.setItem('apellidoMaterno', data.apellidoMaterno);
+      localStorage.setItem('rol', data.rol);
       localStorage.removeItem('nombre');
       window.location.reload();
     } catch (e) {
