@@ -207,10 +207,15 @@ router.get('/deserciones', authMiddleware, async (req, res) => {
                p.Telefono AS numero,
                FORMAT(d.fecha_desercion,'yyyy-MM-dd') AS fecha_desercion,
                d.motivo,
-               d.capa_numero
+               d.capa_numero,
+               d.campania,
+               d.fecha_inicio
         FROM Deserciones_Formacion d
         JOIN Postulantes_En_Formacion p ON p.DNI = d.postulante_dni
+          AND p.Campaña = d.campania
+          AND CONVERT(varchar, p.FechaInicio, 23) = CONVERT(varchar, d.fecha_inicio, 23)
         WHERE p.DNI_Capacitador = @dniCap
+          AND p.Campaña = @camp
           AND FORMAT(p.FechaInicio,'yyyy-MM') = @prefijo
           AND d.capa_numero = @capa
         ORDER BY d.fecha_desercion
@@ -287,15 +292,17 @@ router.post('/deserciones/bulk', authMiddleware, async (req, res) => {
         .input("fechaDes", sql.Date,          r.fecha_desercion)
         .input("mot",      sql.NVarChar(250), motivoSeguro)
         .input("capa",     sql.Int,           r.capa_numero)
+        .input("campania", sql.VarChar(100),  r.campania)
+        .input("fechaInicio", sql.Date,       r.fecha_inicio)
         .query(`
 MERGE Deserciones_Formacion AS T
-USING (SELECT @dni AS dni, @capa AS capa) AS S
-  ON T.postulante_dni = S.dni AND T.capa_numero = S.capa
+USING (SELECT @dni AS dni, @capa AS capa, @campania AS campania, @fechaInicio AS fechaInicio) AS S
+  ON T.postulante_dni = S.dni AND T.capa_numero = S.capa AND T.campania = S.campania AND T.fecha_inicio = S.fechaInicio
 WHEN MATCHED THEN
   UPDATE SET fecha_desercion = @fechaDes, motivo = @mot
 WHEN NOT MATCHED THEN
-  INSERT (postulante_dni,capa_numero,fecha_desercion,motivo)
-  VALUES (@dni,@capa,@fechaDes,@mot);
+  INSERT (postulante_dni,capa_numero,fecha_desercion,motivo,campania,fecha_inicio)
+  VALUES (@dni,@capa,@fechaDes,@mot,@campania,@fechaInicio);
         `);
       // Eliminar cualquier asistencia previa para ese día y capa
       await tx.request()
@@ -313,9 +320,11 @@ WHEN NOT MATCHED THEN
         .input("etapa",  sql.VarChar(20), "Capacitacion")
         .input("estado", sql.Char(1),     "D")
         .input("capa",   sql.Int,         r.capa_numero)
+        .input("campania", sql.VarChar(100), r.campania)
+        .input("fechaInicio", sql.Date,   r.fecha_inicio)
         .query(`
-          INSERT INTO Asistencia_Formacion (postulante_dni, fecha, etapa, estado_asistencia, capa_numero)
-          VALUES (@dni, @fecha, @etapa, @estado, @capa);
+          INSERT INTO Asistencia_Formacion (postulante_dni, fecha, etapa, estado_asistencia, capa_numero, campania, fecha_inicio)
+          VALUES (@dni, @fecha, @etapa, @estado, @capa, @campania, @fechaInicio);
         `);
       // NUEVO: Actualizar EstadoPostulante a 'Desertó' SOLO para la capa correcta
       await tx.request()
@@ -476,15 +485,17 @@ router.post('/asistencia/bulk', authMiddleware, async (req, res) => {
         .input("etapa",  sql.VarChar(20), r.etapa)
         .input("estado", sql.Char(1),     r.estado_asistencia)
         .input("capa",   sql.Int,         r.capa_numero)
+        .input("campania", sql.VarChar(100), r.campania)
+        .input("fechaInicio", sql.Date, r.fecha_inicio)
         .query(`
 MERGE Asistencia_Formacion AS T
 USING (SELECT @dni AS dni, @fecha AS fecha, @capa AS capa) AS S
   ON T.postulante_dni = S.dni AND T.fecha = S.fecha AND T.capa_numero = S.capa
 WHEN MATCHED THEN
-  UPDATE SET etapa = @etapa, estado_asistencia = @estado
+  UPDATE SET etapa = @etapa, estado_asistencia = @estado, campania = @campania, fecha_inicio = @fechaInicio
 WHEN NOT MATCHED THEN
-  INSERT (postulante_dni,fecha,etapa,estado_asistencia,capa_numero)
-  VALUES (@dni,@fecha,@etapa,@estado,@capa);
+  INSERT (postulante_dni,fecha,etapa,estado_asistencia,capa_numero,campania,fecha_inicio)
+  VALUES (@dni,@fecha,@etapa,@estado,@capa,@campania,@fechaInicio);
         `);
     }
     await tx.commit();

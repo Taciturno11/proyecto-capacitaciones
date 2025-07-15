@@ -1,10 +1,23 @@
-export default function DesercionesTable({ postCtx }) {
+import React from "react";
+function normalize(str) {
+  return (str || "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+export default function DesercionesTable({ postCtx, campania, capaNum }) {
   const { deserciones } = postCtx;
-  // Elimina duplicados por dni + fecha + capa_numero
+  // Filtrar por campaña y capa (insensible a mayúsculas/minúsculas y espacios)
+  const desercionesFiltradas = deserciones.filter(d => {
+    if (!campania || !capaNum) return true;
+    return (
+      normalize(d.campania) === normalize(campania) &&
+      String(d.capa_numero) === String(capaNum)
+    );
+  });
+  // Elimina duplicados por dni + fecha + capa_numero + campania
   const desercionesUnicas = [];
   const seen = new Set();
-  for (const d of deserciones) {
-    const key = `${d.postulante_dni}-${d.fecha_desercion}-${d.capa_numero || ''}`;
+  for (const d of desercionesFiltradas) {
+    const key = `${d.postulante_dni}-${d.fecha_desercion}-${d.capa_numero || ''}-${normalize(d.campania)}`;
     if (!seen.has(key)) {
       desercionesUnicas.push(d);
       seen.add(key);
@@ -38,14 +51,14 @@ export default function DesercionesTable({ postCtx }) {
         </thead>
         <tbody>
           {desercionesUnicas.map(d => (
-            <tr key={d.postulante_dni + '-' + (d.capa_numero || '') + '-' + d.fecha_desercion} className="bg-white">
+            <tr key={d.postulante_dni + '-' + (d.capa_numero || '') + '-' + d.fecha_desercion + '-' + normalize(d.campania)} className="bg-white">
               <td className="border px-2 py-0 w-[340px] whitespace-nowrap truncate">{d.nombre}</td>
               <td className="border px-4 py-0 w-auto text-center">{d.postulante_dni}</td>
               <td className="border px-4 py-0 w-auto text-center">{d.numero}</td>
               <td className="border px-10 py-0 w-[120px] text-center whitespace-nowrap">{d.fecha_desercion}</td>
               <td className="border px-4 py-0 min-w-[280px] w-auto">
                 <div className="w-full bg-transparent text-gray-800 whitespace-pre-line">
-                  {d.motivo || <span className="italic text-gray-400">Sin motivo</span>}
+                  {d.motivo}
                 </div>
               </td>
             </tr>

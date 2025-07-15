@@ -185,7 +185,9 @@ export default function usePostulantes() {
             fecha: dias[i],
             etapa: i < capCount ? "Capacitacion" : "OJT",
             estado_asistencia: est === "Deserción" ? "D" : est,
-            capa_numero: capaNum // <--- AGREGADO
+            capa_numero: capaNum, // <--- AGREGADO
+            campania: params.campania,
+            fecha_inicio: params.fechaInicio
           });
         }
       });
@@ -196,7 +198,9 @@ export default function usePostulantes() {
         postulante_dni: d.postulante_dni,
         fecha_desercion: d.fecha_desercion,
         motivo: d.motivo,
-        capa_numero: Number(d.capa_numero)
+        capa_numero: Number(d.capa_numero),
+        campania: params.campania,
+        fecha_inicio: params.fechaInicio
       }));
 
     const payloadE = evaluaciones
