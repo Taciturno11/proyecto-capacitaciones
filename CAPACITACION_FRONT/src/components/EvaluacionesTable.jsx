@@ -47,8 +47,11 @@ export default function EvaluacionesTable({ postCtx, modo }) {
             const promedio = calcularPromedio(p.dni);
             const promedioDisplay = promedio ? promedio : "---";
             const promedioClass = obtenerClaseColor(promedio);
+            // Si alguna evaluación de este postulante está dirty, resaltar la fila
+            const isDirty = evaluaciones.some(e => e.postulante_dni === p.dni && e.dirty);
+            const dirtyClass = isDirty ? 'ring-2 ring-yellow-400' : '';
             return (
-              <tr key={p.dni} className="bg-[#f9f6f2]/80">
+              <tr key={p.dni} className={`bg-[#f9f6f2]/80 ${dirtyClass}`}>
                 <td className={`${tdBase} text-left`}>{p.nombre}</td>
                 <td className={`${tdBase}`}>{p.dni}</td>
                 <td className={`${tdBase}`}>{p.numero}</td>

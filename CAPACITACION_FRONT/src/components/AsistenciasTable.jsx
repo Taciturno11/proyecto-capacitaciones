@@ -37,7 +37,7 @@ function PopoverPortal({ anchorRef, children, open }) {
   );
 }
 
-export default function AsistenciasTable({ postCtx, compact, dniCap, campania, mes, fechaInicio, capaNum }) {
+export default function AsistenciasTable({ postCtx, compact, dniCap, CampañaID, mes, fechaInicio, capaNum }) {
   const { dias, tablaDatos, setAsistencia, capCount, loadLote } = postCtx;
   const [popover, setPopover] = useState({ open: false, row: null, col: null });
   const [motivo, setMotivo] = useState("");
@@ -82,7 +82,7 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, campania, m
           fecha_desercion: dias[popover.col],
           motivo,
           capa_numero: p.capa_numero || capaNum || 1,
-          CampañaID: campania, // <-- debe ser el ID numérico
+          CampañaID: p.CampañaID, // <-- debe ser el ID numérico
           fecha_inicio: fechaInicio, // <--- AGREGADO
           guardado: false
         }];
@@ -94,17 +94,15 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, campania, m
           },
           body: JSON.stringify(desercionPayload)
         });
-        // 3. Recargar lote completo para refrescar la tabla de deserciones y asistencias
+        // Refrescar el lote de datos para que la deserción aparezca inmediatamente
         if (typeof loadLote === 'function') {
-          const params = {
+          loadLote({
             dniCap,
-            campania,
+            CampañaID,
             mes,
             fechaInicio,
-            capaNum: capaNum || 1
-          };
-          console.log('Recargando lote con:', params);
-          await loadLote(params);
+            capaNum
+          });
         }
       } catch {
         alert("Error al guardar la deserción");
@@ -174,12 +172,14 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, campania, m
             }
             const idxDesercion = p.asistencia.findIndex(est => est === "Deserción");
             const tieneDesercion = idxDesercion !== -1;
+            // Resaltar fila dirty
+            const dirtyClass = p.dirty ? 'ring-2 ring-yellow-400' : '';
             return (
               <tr key={p.dni}
                 className={
-                  tieneDesercion
+                  (tieneDesercion
                     ? "bg-red-100"
-                    : "bg-[#f9f6f2]/80"
+                    : "bg-[#f9f6f2]/80") + ' ' + dirtyClass
                 }
               >
                 <td className={`${tdBase} text-left`}>{p.nombre}</td>
@@ -263,11 +263,15 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, campania, m
                     value={p.resultadoFinal || ''}
                     onChange={e => {
                       const val = e.target.value;
-                      postCtx.setTablaDatos(t => {
-                        const copy = [...t];
-                        copy[r] = { ...copy[r], resultadoFinal: val };
-                        return copy;
-                      });
+                      if (postCtx.setResultadoFinal) {
+                        postCtx.setResultadoFinal(r, val);
+                      } else {
+                        postCtx.setTablaDatos(t => {
+                          const copy = [...t];
+                          copy[r] = { ...copy[r], resultadoFinal: val, dirty: true };
+                          return copy;
+                        });
+                      }
                     }}
                     disabled={tieneDesercion}
                   >

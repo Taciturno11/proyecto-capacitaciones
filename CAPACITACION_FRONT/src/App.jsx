@@ -290,9 +290,9 @@ export default function App() {
               >
                 {vista === "asist" && <AsistenciasTable
                   postCtx={post}
-                  compact
+                  compact={false}
                   dniCap={dniCap}
-                  campania={campaniaSeleccionada}
+                  CampañaID={capaSeleccionada?.CampañaID}
                   mes={capaSeleccionada?.fechaInicio?.slice(0, 7)}
                   fechaInicio={capaSeleccionada?.fechaInicio}
                   capaNum={capaSeleccionada?.capa}

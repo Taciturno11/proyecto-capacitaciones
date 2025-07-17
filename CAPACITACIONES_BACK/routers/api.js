@@ -97,9 +97,13 @@ router.get("/capacitadores/:dni", async (req, res) => {
       .input("dni", sql.VarChar(20), dni)
       .query(`
         SELECT e.DNI, e.Nombres, e.ApellidoPaterno, e.ApellidoMaterno,
-               (SELECT DISTINCT Campaña
-                FROM Postulantes_En_Formacion
-                WHERE DNI_Capacitador = e.DNI FOR JSON PATH) AS campañasJson
+               (
+                 SELECT DISTINCT pf.CampañaID, c.NombreCampaña
+                 FROM Postulantes_En_Formacion pf
+                 LEFT JOIN PRI.Campanias c ON pf.CampañaID = c.CampañaID
+                 WHERE pf.DNI_Capacitador = e.DNI
+                 FOR JSON PATH
+               ) AS campañasJson
         FROM PRI.Empleados e
         WHERE e.DNI = @dni
           AND e.CargoID = 7
@@ -112,7 +116,7 @@ router.get("/capacitadores/:dni", async (req, res) => {
       nombres : row.Nombres,
       apellidoPaterno : row.ApellidoPaterno,
       apellidoMaterno : row.ApellidoMaterno,
-      campañas: JSON.parse(row.campañasJson || "[]").map(o => o.Campaña)
+      campañas: JSON.parse(row.campañasJson || "[]")
     });
   } catch (e) { console.error(e); res.sendStatus(500); }
 });
@@ -132,12 +136,12 @@ router.get("/capas", async (req, res) => {
       LEFT JOIN PRI.Campanias c ON pf.CampañaID = c.CampañaID
       WHERE pf.DNI_Capacitador = @dniCap
     `;
-    if (campania) query += ` AND pf.Campaña = @camp`;
+    if (campania) query += ` AND pf.CampañaID = @camp`;
     if (mes)      query += ` AND FORMAT(pf.FechaInicio,'yyyy-MM') = @prefijo`;
     query += ` GROUP BY pf.CampañaID, c.NombreCampaña, FORMAT(pf.FechaInicio,'yyyy-MM-dd') ORDER BY fechaInicio`;
 
     const request = R().input("dniCap", sql.VarChar(20), dniCap);
-    if (campania) request.input("camp", sql.VarChar(100), campania);
+    if (campania) request.input("camp", sql.Int, Number(campania));
     if (mes)      request.input("prefijo", sql.VarChar(7), mes);
 
     const { recordset } = await request.query(query);
@@ -206,6 +210,10 @@ router.get('/postulantes', authMiddleware, async (req, res) => {
 router.get('/deserciones', authMiddleware, async (req, res) => {
   const dniCap = req.user.dni;
   const { campaniaID, mes, capa } = req.query;
+  // Validación estricta de parámetros
+  if (!dniCap || !campaniaID || !mes || !capa) {
+    return res.status(400).json({ error: "Parámetros inválidos para deserciones", params: { dniCap, campaniaID, mes, capa } });
+  }
   try {
     console.log('GET /deserciones params:', { dniCap, campaniaID, mes, capa });
     const { recordset } = await R()
@@ -220,19 +228,23 @@ router.get('/deserciones', authMiddleware, async (req, res) => {
                FORMAT(d.fecha_desercion,'yyyy-MM-dd') AS fecha_desercion,
                d.motivo,
                d.capa_numero,
-               d.campania,
+               d.CampañaID,
+               c.NombreCampaña,
                d.fecha_inicio
         FROM Deserciones_Formacion d
         JOIN Postulantes_En_Formacion p ON p.DNI = d.postulante_dni
           AND p.CampañaID = @camp
           AND CONVERT(varchar, p.FechaInicio, 23) = CONVERT(varchar, d.fecha_inicio, 23)
+        LEFT JOIN PRI.Campanias c ON d.CampañaID = c.CampañaID
         WHERE p.DNI_Capacitador = @dniCap
           AND p.CampañaID = @camp
           AND FORMAT(p.FechaInicio,'yyyy-MM') = @prefijo
           AND d.capa_numero = @capa
+          AND CONVERT(varchar, p.FechaInicio, 23) = CONVERT(varchar, d.fecha_inicio, 23)
         ORDER BY d.fecha_desercion
       `);
-    console.log('GET /deserciones resultado:', recordset);
+    console.log('GET /deserciones resultado cantidad:', recordset.length);
+    console.log('Primeras 3 deserciones:', recordset.slice(0,3));
     res.json(recordset);
   } catch (e) { console.error(e); res.sendStatus(500); }
 });
@@ -293,21 +305,12 @@ router.post('/deserciones/bulk', authMiddleware, async (req, res) => {
       if (typeof r.motivo === 'string' && r.motivo.trim() !== '') {
         motivoSeguro = r.motivo;
       }
-      // Obtener el nombre de campaña si es necesario
-      let nombreCampania = null;
-      if (r.CampañaID) {
-        const { recordset } = await tx.request()
-          .input('id', sql.Int, r.CampañaID)
-          .query('SELECT NombreCampaña FROM PRI.Campanias WHERE CampañaID = @id');
-        nombreCampania = recordset[0]?.NombreCampaña || '';
-      }
       await tx.request()
         .input("dni",      sql.VarChar(20),   r.postulante_dni)
         .input("fechaDes", sql.Date,          r.fecha_desercion)
         .input("mot",      sql.NVarChar(250), motivoSeguro)
         .input("capa",     sql.Int,           r.capa_numero)
         .input("CampañaID", sql.Int,         r.CampañaID)
-        .input("campania", sql.VarChar(100),  nombreCampania)
         .input("fechaInicio", sql.Date,       r.fecha_inicio)
         .query(`
 MERGE Deserciones_Formacion AS T
@@ -316,8 +319,8 @@ USING (SELECT @dni AS dni, @capa AS capa, @CampañaID AS CampañaID, @fechaInici
 WHEN MATCHED THEN
   UPDATE SET fecha_desercion = @fechaDes, motivo = @mot
 WHEN NOT MATCHED THEN
-  INSERT (postulante_dni,capa_numero,fecha_desercion,motivo,CampañaID,campania,fecha_inicio)
-  VALUES (@dni,@capa,@fechaDes,@mot,@CampañaID,@campania,@fechaInicio);
+  INSERT (postulante_dni,capa_numero,fecha_desercion,motivo,CampañaID,fecha_inicio)
+  VALUES (@dni,@capa,@fechaDes,@mot,@CampañaID,@fechaInicio);
         `);
       // Eliminar cualquier asistencia previa para ese día y capa
       await tx.request()
@@ -336,11 +339,10 @@ WHEN NOT MATCHED THEN
         .input("estado", sql.Char(1),     "D")
         .input("capa",   sql.Int,         r.capa_numero)
         .input("CampañaID", sql.Int,     r.CampañaID)
-        .input("campania", sql.VarChar(100), nombreCampania)
         .input("fechaInicio", sql.Date,   r.fecha_inicio)
         .query(`
-          INSERT INTO Asistencia_Formacion (postulante_dni, fecha, etapa, estado_asistencia, capa_numero, CampañaID, campania, fecha_inicio)
-          VALUES (@dni, @fecha, @etapa, @estado, @capa, @CampañaID, @campania, @fechaInicio);
+          INSERT INTO Asistencia_Formacion (postulante_dni, fecha, etapa, estado_asistencia, capa_numero, CampañaID, fecha_inicio)
+          VALUES (@dni, @fecha, @etapa, @estado, @capa, @CampañaID, @fechaInicio);
         `);
       // NUEVO: Actualizar EstadoPostulante a 'Desertó' SOLO para la capa correcta
       await tx.request()
@@ -401,7 +403,7 @@ router.get('/evaluaciones', authMiddleware, async (req, res) => {
         FROM Evaluaciones_Formacion e
         JOIN Postulantes_En_Formacion p ON p.DNI = e.postulante_dni
         WHERE p.DNI_Capacitador = @dniCap
-          AND p.Campaña         = @camp
+          AND p.CampañaID         = @camp
           AND FORMAT(p.FechaInicio,'yyyy-MM')    = @prefijo
           AND FORMAT(p.FechaInicio,'yyyy-MM-dd') = @fechaInicio
         ORDER BY e.fecha_evaluacion
@@ -501,17 +503,16 @@ router.post('/asistencia/bulk', authMiddleware, async (req, res) => {
         .input("etapa",  sql.VarChar(20), r.etapa)
         .input("estado", sql.Char(1),     r.estado_asistencia)
         .input("capa",   sql.Int,         r.capa_numero)
-        .input("campania", sql.VarChar(100), r.campania)
         .input("fechaInicio", sql.Date, r.fecha_inicio)
         .query(`
 MERGE Asistencia_Formacion AS T
 USING (SELECT @dni AS dni, @fecha AS fecha, @capa AS capa) AS S
   ON T.postulante_dni = S.dni AND T.fecha = S.fecha AND T.capa_numero = S.capa
 WHEN MATCHED THEN
-  UPDATE SET etapa = @etapa, estado_asistencia = @estado, campania = @campania, fecha_inicio = @fechaInicio
+  UPDATE SET etapa = @etapa, estado_asistencia = @estado, fecha_inicio = @fechaInicio
 WHEN NOT MATCHED THEN
-  INSERT (postulante_dni,fecha,etapa,estado_asistencia,capa_numero,campania,fecha_inicio)
-  VALUES (@dni,@fecha,@etapa,@estado,@capa,@campania,@fechaInicio);
+  INSERT (postulante_dni,fecha,etapa,estado_asistencia,capa_numero,fecha_inicio)
+  VALUES (@dni,@fecha,@etapa,@estado,@capa,@fechaInicio);
         `);
     }
     await tx.commit();
@@ -552,14 +553,14 @@ router.get('/dashboard-coordinadora/:dni/campanias', async (req, res) => {
     const { recordset } = await R()
       .input('jefeDni', sql.VarChar(20), dniCoordinadora)
       .query(`
-        SELECT DISTINCT Campaña
+        SELECT DISTINCT CampañaID
         FROM Postulantes_En_Formacion
         WHERE DNI_Capacitador IN (
           SELECT DNI FROM PRI.Empleados WHERE CargoID = 7 AND EstadoEmpleado = 'Activo' AND JefeDNI = @jefeDni
         )
-        ORDER BY Campaña
+        ORDER BY CampañaID
       `);
-    res.json(recordset.map(r => r.Campaña));
+    res.json(recordset.map(r => r.CampañaID));
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Error al obtener campañas' });
@@ -608,11 +609,11 @@ router.get('/dashboard-coordinadora/:dni', async (req, res) => {
 
     // 2. Obtener postulantes de todos los capacitadores filtrando por campaña y mes
     let queryPostulantes = `
-      SELECT DNI, DNI_Capacitador, EstadoPostulante, Campaña, FORMAT(FechaInicio,'yyyy-MM') AS mes
+      SELECT DNI, DNI_Capacitador, EstadoPostulante, CampañaID, FORMAT(FechaInicio,'yyyy-MM') AS mes
       FROM Postulantes_En_Formacion
       WHERE DNI_Capacitador IN (${dnis})
     `;
-    if (campania) queryPostulantes += ` AND Campaña = @campania`;
+    if (campania) queryPostulantes += ` AND CampañaID = @campania`;
     if (mes) queryPostulantes += ` AND FORMAT(FechaInicio,'yyyy-MM') = @mes`;
     const postulantesResult = await R()
       .input('campania', sql.VarChar(100), campania || null)
@@ -627,7 +628,7 @@ router.get('/dashboard-coordinadora/:dni', async (req, res) => {
       JOIN Postulantes_En_Formacion p ON p.DNI = d.postulante_dni
       WHERE p.DNI_Capacitador IN (${dnis})
     `;
-    if (campania) queryDeserciones += ` AND p.Campaña = @campania`;
+    if (campania) queryDeserciones += ` AND p.CampañaID = @campania`;
     if (mes) queryDeserciones += ` AND FORMAT(p.FechaInicio,'yyyy-MM') = @mes`;
     const desercionesResult = await R()
       .input('campania', sql.VarChar(100), campania || null)
@@ -734,44 +735,46 @@ function authMiddleware(req, res, next) {
 
 // Endpoint para actualizar el estado final de los postulantes
 router.post('/postulantes/estado', async (req, res) => {
-  // Espera un array: [{ dni, estado, campania, fecha_inicio }]
+  // Espera un array: [{ dni, estado, CampañaID, fecha_inicio }]
+  console.log('POST /postulantes/estado body:', req.body);
   const tx = new sql.Transaction(sql.globalConnection);
   await tx.begin();
   try {
     for (const p of req.body) {
+      console.log('Actualizando:', { dni: p.dni, CampañaID: p.CampañaID, fecha_inicio: p.fecha_inicio, estado: p.estado, fechaCese: p.fechaCese });
       if (p.estado === 'Desaprobado' && p.fechaCese) {
         await tx.request()
           .input("dni", sql.VarChar(20), p.dni)
-          .input("campania", sql.VarChar(100), p.campania)
+          .input("CampañaID", sql.Int, Number(p.CampañaID))
           .input("fechaInicio", sql.Date, p.fecha_inicio)
           .input("estado", sql.VarChar(20), p.estado)
           .input("fechaCese", sql.Date, p.fechaCese)
           .query(`
             UPDATE Postulantes_En_Formacion
             SET EstadoPostulante = @estado, FechaCese = @fechaCese
-            WHERE DNI = @dni AND Campaña = @campania AND FechaInicio = @fechaInicio
+            WHERE DNI = @dni AND CampañaID = @CampañaID AND FechaInicio = @fechaInicio
           `);
       } else if (p.estado === 'Contratado') {
         await tx.request()
           .input("dni", sql.VarChar(20), p.dni)
-          .input("campania", sql.VarChar(100), p.campania)
+          .input("CampañaID", sql.Int, Number(p.CampañaID))
           .input("fechaInicio", sql.Date, p.fecha_inicio)
           .input("estado", sql.VarChar(20), p.estado)
           .query(`
             UPDATE Postulantes_En_Formacion
             SET EstadoPostulante = @estado, FechaCese = NULL
-            WHERE DNI = @dni AND Campaña = @campania AND FechaInicio = @fechaInicio
+            WHERE DNI = @dni AND CampañaID = @CampañaID AND FechaInicio = @fechaInicio
           `);
       } else {
         await tx.request()
           .input("dni", sql.VarChar(20), p.dni)
-          .input("campania", sql.VarChar(100), p.campania)
+          .input("CampañaID", sql.Int, Number(p.CampañaID))
           .input("fechaInicio", sql.Date, p.fecha_inicio)
           .input("estado", sql.VarChar(20), p.estado)
           .query(`
             UPDATE Postulantes_En_Formacion
             SET EstadoPostulante = @estado
-            WHERE DNI = @dni AND Campaña = @campania AND FechaInicio = @fechaInicio
+            WHERE DNI = @dni AND CampañaID = @CampañaID AND FechaInicio = @fechaInicio
           `);
       }
     }

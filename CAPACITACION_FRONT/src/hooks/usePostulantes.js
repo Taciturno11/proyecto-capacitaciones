@@ -80,11 +80,17 @@ export default function usePostulantes() {
     setTablaDatos(tabla);
 
     // Deserciones
-    const desPrev = await api(
-      `/api/deserciones?dniCap=${dniCap}&campaniaID=${encodeURIComponent(CampañaID)}`+
-      `&mes=${mes}&capa=${capaNum}`
-    );
-    setDeserciones(desPrev.map(d => ({ ...d, guardado: false })));
+    if (dniCap && CampañaID && mes && capaNum) {
+      console.log('Llamando a /api/deserciones con:', { dniCap, CampañaID, mes, capaNum });
+      const desPrev = await api(
+        `/api/deserciones?dniCap=${dniCap}&campaniaID=${encodeURIComponent(CampañaID)}`+
+        `&mes=${mes}&capa=${capaNum}`
+      );
+      console.log('Deserciones recibidas:', desPrev);
+      setDeserciones(desPrev.map(d => ({ ...d, guardado: false })));
+    } else {
+      setDeserciones([]);
+    }
 
     // Evaluaciones
     const evalPrev = await api(
@@ -102,16 +108,14 @@ export default function usePostulantes() {
       copy[row] = { ...copy[row] };
       copy[row].asistencia = [...copy[row].asistencia];
       copy[row].asistencia[col] = val;
-      
+      copy[row].dirty = true; // MARCA DIRTY SOLO EN ASISTENCIAS
       // Bloqueo tras deserción
       if (val === "Deserción") {
-        // Bloquear todas las fechas posteriores
         for (let i = col + 1; i < copy[row].asistencia.length; i++) {
           copy[row].asistencia[i] = "---";
         }
         copy[row].bloqueada = true;
       } else {
-        // Si se quita la deserción, desbloquear
         if (copy[row].bloqueada) {
           for (let i = 0; i < copy[row].asistencia.length; i++) {
             if (copy[row].asistencia[i] === "---") copy[row].asistencia[i] = "";
@@ -120,36 +124,6 @@ export default function usePostulantes() {
         }
       }
       return copy;
-    });
-
-    setDeserciones(d => {
-      const p = tablaDatos[row];
-      const dni = p.dni;
-      const nombre = p.nombre;
-      const numero = p.numero;
-      const fecha_desercion = dias[col];
-      const capa_numero = capaNum; // O usa el valor correcto del contexto
-      if (val === "Deserción") {
-        // Si no existe ya, agregar
-        if (!d.some(x => x.postulante_dni === dni)) {
-          return [
-            ...d,
-            {
-              postulante_dni: dni,
-              nombre,
-              numero,
-              fecha_desercion,
-              motivo: "",
-              capa_numero,
-              guardado: false
-            }
-          ];
-        }
-        return d;
-      } else {
-        // Si existe y se quitó la deserción, eliminar
-        return d.filter(x => x.postulante_dni !== dni);
-      }
     });
     setDirty(true);
   };
@@ -178,25 +152,37 @@ export default function usePostulantes() {
     setDirty(true);
   };
 
-  // Guardar todo (asistencia+deserciones+evaluaciones+resultadoFinal)
+  // Handler para resultado final (para usar en el componente)
+  const setResultadoFinal = (row, val) => {
+    setTablaDatos(t => {
+      const copy = [...t];
+      copy[row] = { ...copy[row], resultadoFinal: val, dirty: true };
+      return copy;
+    });
+    setDirty(true);
+  };
+
+  // Guardar solo asistencias y resultadoFinal dirty
   const guardarCambios = async params => {
     const { fechaInicio } = params;
     // Payloads
     const payloadA = [];
     tablaDatos.forEach(p => {
-      p.asistencia.forEach((est, i) => {
-        if (est && est !== "---") {
-          payloadA.push({
-            postulante_dni: p.dni,
-            fecha: dias[i],
-            etapa: i < capCount ? "Capacitacion" : "OJT",
-            estado_asistencia: est === "Deserción" ? "D" : est,
-            capa_numero: capaNum, // <--- AGREGADO
-            CampañaID: params.campaniaID,
-            fecha_inicio: params.fechaInicio
-          });
-        }
-      });
+      if (p.dirty) {
+        p.asistencia.forEach((est, i) => {
+          if (est && est !== "---") {
+            payloadA.push({
+              postulante_dni: p.dni,
+              fecha: dias[i],
+              etapa: i < capCount ? "Capacitacion" : "OJT",
+              estado_asistencia: est === "Deserción" ? "D" : est,
+              capa_numero: capaNum,
+              CampañaID: params.campaniaID,
+              fecha_inicio: params.fechaInicio
+            });
+          }
+        });
+      }
     });
     const desToSend = deserciones
       .filter(d => d.motivo && d.motivo.trim() !== "")
@@ -205,29 +191,39 @@ export default function usePostulantes() {
         fecha_desercion: d.fecha_desercion,
         motivo: d.motivo,
         capa_numero: Number(d.capa_numero),
-        CampañaID: params.campaniaID,
+        CampañaID: params.campaniaID || d.CampañaID,
         fecha_inicio: params.fechaInicio
       }));
-
     const payloadE = evaluaciones
       .filter(e => e.nota != null)
       .map(e => ({ ...e, fechaInicio }));
-
-    // NUEVO: Payload para resultado final
+    // Payload de resultado final solo con dirty
     const payloadEstados = tablaDatos
-      .filter(p => p.resultadoFinal && !p.bloqueada)
+      .filter(p => p.dirty && p.resultadoFinal)
       .map(p => {
+        const CampañaID = params.campaniaID || params.CampañaID || p.CampañaID;
         if (p.resultadoFinal === 'Desaprobado') {
-          return { dni: p.dni, estado: p.resultadoFinal, fechaCese: dias[dias.length - 1], CampañaID: params.campaniaID, fecha_inicio: params.fechaInicio };
+          return {
+            dni: p.dni,
+            estado: p.resultadoFinal,
+            fechaCese: dias[dias.length - 1],
+            CampañaID,
+            fecha_inicio: params.fechaInicio
+          };
         }
-        return { dni: p.dni, estado: p.resultadoFinal, CampañaID: params.campaniaID, fecha_inicio: params.fechaInicio };
+        return {
+          dni: p.dni,
+          estado: p.resultadoFinal,
+          CampañaID,
+          fecha_inicio: params.fechaInicio
+        };
       });
+    console.log('Estados finales a enviar:', payloadEstados);
 
     // LOGS DE DEPURACIÓN
     console.log("Asistencias a enviar:", payloadA);
-    console.log("Deserciones a enviar:", desToSend);
+    console.log("Deserciones a enviar (con CampañaID):", desToSend);
     console.log("Evaluaciones a enviar:", payloadE);
-    console.log("Estados finales a enviar:", payloadEstados);
 
     if (!payloadA.length && !desToSend.length && !payloadE.length && !payloadEstados.length) {
       alert("Nada por guardar");
@@ -244,6 +240,8 @@ export default function usePostulantes() {
       if (payloadEstados.length) await api("/api/postulantes/estado",
         { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payloadEstados) });
 
+      // Limpiar dirty tras guardar
+      setTablaDatos(t => t.map(row => ({ ...row, dirty: false })));
       setDirty(false);
       alert("Cambios guardados ✔️");
     } catch (error) {
