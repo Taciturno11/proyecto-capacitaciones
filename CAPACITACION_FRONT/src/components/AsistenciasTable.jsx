@@ -82,7 +82,7 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, campania, m
           fecha_desercion: dias[popover.col],
           motivo,
           capa_numero: p.capa_numero || capaNum || 1,
-          campania: campania, // <--- AGREGADO
+          CampañaID: campania, // <-- debe ser el ID numérico
           fecha_inicio: fechaInicio, // <--- AGREGADO
           guardado: false
         }];
@@ -134,6 +134,10 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, campania, m
             {/* Nombre y DNI con fondo beige claro y texto centrado */}
             <th rowSpan={2} className={`${thBase} bg-[#f5ede6] text-[#3d3d3d] text-center font-semibold border-b border-[#e0d7ce] min-w-[240px] rounded-tl-xl`}>Nombre</th>
             <th rowSpan={2} className={`${thBase} bg-[#f5ede6] text-[#3d3d3d] text-center font-semibold border-b border-[#e0d7ce] min-w-[90px]`}>DNI</th>
+            {/* Quitar columnas Campaña, Modalidad y Jornada */}
+            {/* <th rowSpan={2} className={`${thBase} bg-[#f5ede6] text-[#3d3d3d] text-center font-semibold border-b border-[#e0d7ce] min-w-[120px]`}>Campaña</th> */}
+            {/* <th rowSpan={2} className={`${thBase} bg-[#f5ede6] text-[#3d3d3d] text-center font-semibold border-b border-[#e0d7ce] min-w-[120px]`}>Modalidad</th> */}
+            {/* <th rowSpan={2} className={`${thBase} bg-[#f5ede6] text-[#3d3d3d] text-center font-semibold border-b border-[#e0d7ce] min-w-[120px]`}>Jornada</th> */}
             {/* Capacitación y OJT */}
             <th colSpan={capCount}
                 className={`${thBase} bg-[#ffe5b4] text-[#3d3d3d] text-center font-semibold border-b border-[#e0d7ce]`}>
@@ -180,6 +184,9 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, campania, m
               >
                 <td className={`${tdBase} text-left`}>{p.nombre}</td>
                 <td className={`${tdBase} text-center min-w-[90px]`}>{p.dni}</td>
+                {/* <td className={`${tdBase} text-center min-w-[120px]`}>{p.NombreCampaña}</td> */}
+                {/* <td className={`${tdBase} text-center min-w-[120px]`}>{p.NombreModalidad}</td> */}
+                {/* <td className={`${tdBase} text-center min-w-[120px]`}>{p.NombreJornada}</td> */}
                 {dias.map((_, c) => {
                   const valor = (p.asistencia && p.asistencia.length > c) ? p.asistencia[c] : "";
                   if (valor === "---") {

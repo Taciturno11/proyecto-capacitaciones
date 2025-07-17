@@ -30,13 +30,13 @@ export default function usePostulantes() {
   };
 
   // Cargar lote completo (postulantes, asistencias, deserciones, evaluaciones)
-  const loadLote = async ({ dniCap, campania, mes, fechaInicio, capaNum }) => {
-    if (!dniCap || !campania || !mes || mes === 'undefined' || !fechaInicio || fechaInicio === 'undefined' || !capaNum) {
-      console.warn('[usePostulantes] No se carga lote por parámetros inválidos:', { dniCap, campania, mes, fechaInicio, capaNum });
+  const loadLote = async ({ dniCap, CampañaID, mes, fechaInicio, capaNum }) => {
+    if (!dniCap || !CampañaID || !mes || mes === 'undefined' || !fechaInicio || fechaInicio === 'undefined' || !capaNum) {
+      console.warn('[usePostulantes] No se carga lote por parámetros inválidos:', { dniCap, CampañaID, mes, fechaInicio, capaNum });
       return;
     }
     const { postulantes, asistencias, duracion } = await api(
-      `/api/postulantes?dniCap=${dniCap}&campania=${encodeURIComponent(campania)}`+
+      `/api/postulantes?dniCap=${dniCap}&campaniaID=${encodeURIComponent(CampañaID)}`+
       `&mes=${mes}&fechaInicio=${fechaInicio}`
     );
 
@@ -58,7 +58,13 @@ export default function usePostulantes() {
         numero      : p.telefono || "",
         asistencia,
         bloqueada   : false, // para bloqueo tras deserción
-        resultadoFinal: p.EstadoPostulante || ""
+        resultadoFinal: p.EstadoPostulante || "",
+        CampañaID: p.CampañaID,
+        NombreCampaña: p.NombreCampaña,
+        ModalidadID: p.ModalidadID,
+        NombreModalidad: p.NombreModalidad,
+        JornadaID: p.JornadaID,
+        NombreJornada: p.NombreJornada
       };
     });
     // Asistencias previas
@@ -75,14 +81,14 @@ export default function usePostulantes() {
 
     // Deserciones
     const desPrev = await api(
-      `/api/deserciones?dniCap=${dniCap}&campania=${encodeURIComponent(campania)}`+
+      `/api/deserciones?dniCap=${dniCap}&campaniaID=${encodeURIComponent(CampañaID)}`+
       `&mes=${mes}&capa=${capaNum}`
     );
     setDeserciones(desPrev.map(d => ({ ...d, guardado: false })));
 
     // Evaluaciones
     const evalPrev = await api(
-      `/api/evaluaciones?dniCap=${dniCap}&campania=${encodeURIComponent(campania)}`+
+      `/api/evaluaciones?dniCap=${dniCap}&campaniaID=${encodeURIComponent(CampañaID)}`+
       `&mes=${mes}&fechaInicio=${fechaInicio}`
     );
     setEvaluaciones(evalPrev);
@@ -186,7 +192,7 @@ export default function usePostulantes() {
             etapa: i < capCount ? "Capacitacion" : "OJT",
             estado_asistencia: est === "Deserción" ? "D" : est,
             capa_numero: capaNum, // <--- AGREGADO
-            campania: params.campania,
+            CampañaID: params.campaniaID,
             fecha_inicio: params.fechaInicio
           });
         }
@@ -199,7 +205,7 @@ export default function usePostulantes() {
         fecha_desercion: d.fecha_desercion,
         motivo: d.motivo,
         capa_numero: Number(d.capa_numero),
-        campania: params.campania,
+        CampañaID: params.campaniaID,
         fecha_inicio: params.fechaInicio
       }));
 
@@ -212,9 +218,9 @@ export default function usePostulantes() {
       .filter(p => p.resultadoFinal && !p.bloqueada)
       .map(p => {
         if (p.resultadoFinal === 'Desaprobado') {
-          return { dni: p.dni, estado: p.resultadoFinal, fechaCese: dias[dias.length - 1], campania: params.campania, fecha_inicio: params.fechaInicio };
+          return { dni: p.dni, estado: p.resultadoFinal, fechaCese: dias[dias.length - 1], CampañaID: params.campaniaID, fecha_inicio: params.fechaInicio };
         }
-        return { dni: p.dni, estado: p.resultadoFinal, campania: params.campania, fecha_inicio: params.fechaInicio };
+        return { dni: p.dni, estado: p.resultadoFinal, CampañaID: params.campaniaID, fecha_inicio: params.fechaInicio };
       });
 
     // LOGS DE DEPURACIÓN

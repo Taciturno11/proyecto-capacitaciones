@@ -19,11 +19,12 @@ export default function CapacitadorForm({ onValidated }) {
     if (!dni) return;
     try {
       const data = await api(`/api/capacitadores/${dni}`);
+      // Suponiendo que data.campañas ahora es un array de objetos { CampañaID, NombreCampaña }
       setCapacitador(data);
       setCampanias(data.campañas || []);
-      setCampania(data.campañas[0] || "");
+      setCampania(data.campañas[0]?.CampañaID || "");
       setError("");
-      onValidated && onValidated(data, data.campañas[0] || "");
+      onValidated && onValidated(data, data.campañas[0]?.CampañaID || "");
     } catch {
       setCapacitador(null);
       setCampanias([]);
@@ -85,7 +86,7 @@ export default function CapacitadorForm({ onValidated }) {
             <label className="text-sm font-medium">Campaña</label>
             <select value={campania} onChange={handleCampaniaChange} className="border p-2 min-w-[10rem]" style={{ backgroundColor: '#dbeafe' }}>
               {campanias.map(c => (
-                <option key={c} value={c}>{c}</option>
+                <option key={c.CampañaID} value={c.CampañaID}>{c.NombreCampaña}</option>
               ))}
             </select>
           </div>

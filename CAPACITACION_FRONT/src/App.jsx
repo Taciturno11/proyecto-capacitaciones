@@ -83,9 +83,9 @@ export default function App() {
           setSinDatos(false);
           // Selecciona la campaña más reciente por defecto
           const mostRecent = getMostRecentCapa(data);
-          setCampaniaSeleccionada(mostRecent.campania);
+          setCampaniaSeleccionada(mostRecent.CampañaID);
           // Selecciona la capa más reciente de esa campaña
-          const capasDeCamp = data.filter(c => c.campania === mostRecent.campania);
+          const capasDeCamp = data.filter(c => c.CampañaID === mostRecent.CampañaID);
           const mostRecentCapa = getMostRecentCapa(capasDeCamp);
           setCapaSeleccionada(mostRecentCapa);
         }
@@ -100,22 +100,35 @@ export default function App() {
 
   // Cuando cambia la campaña seleccionada, selecciona la capa más reciente de esa campaña
   useEffect(() => {
+    console.log("[App.jsx] campaniaSeleccionada:", campaniaSeleccionada);
+    console.log("[App.jsx] capas:", capas);
+    const capasDeCamp = capas.filter(c => c.CampañaID === campaniaSeleccionada);
+    console.log("[App.jsx] capasDeCamp:", capasDeCamp);
     if (!campaniaSeleccionada) return;
-    const capasDeCamp = capas.filter(c => c.campania === campaniaSeleccionada);
     if (capasDeCamp.length) {
       const mostRecentCapa = getMostRecentCapa(capasDeCamp);
       setCapaSeleccionada(mostRecentCapa);
+      console.log("[App.jsx] setCapaSeleccionada:", mostRecentCapa);
     } else {
       setCapaSeleccionada(null);
+      console.log("[App.jsx] setCapaSeleccionada: null");
     }
   }, [campaniaSeleccionada, capas]);
 
   // Al cambiar de capa seleccionada, carga los datos
   useEffect(() => {
+    console.log("[App.jsx] capaSeleccionada actual:", capaSeleccionada);
     if (!capaSeleccionada) return;
+    console.log("Llamando a loadLote con:", {
+      dniCap,
+      CampañaID: capaSeleccionada.CampañaID,
+      mes: capaSeleccionada.fechaInicio.slice(0, 7),
+      fechaInicio: capaSeleccionada.fechaInicio,
+      capaNum: capaSeleccionada.capa
+    });
     post.loadLote({
       dniCap,
-      campania: capaSeleccionada.campania,
+      CampañaID: capaSeleccionada.CampañaID,
       mes: capaSeleccionada.fechaInicio.slice(0, 7),
       fechaInicio: capaSeleccionada.fechaInicio,
       capaNum: capaSeleccionada.capa
@@ -152,7 +165,7 @@ export default function App() {
     if (!capaSeleccionada) return;
     post.guardarCambios({
       dniCap,
-      campania: capaSeleccionada.campania,
+      CampañaID: capaSeleccionada.CampañaID,
       mes: capaSeleccionada.fechaInicio.slice(0, 7),
       fechaInicio: capaSeleccionada.fechaInicio,
       capaNum: capaSeleccionada.capa
@@ -240,11 +253,12 @@ export default function App() {
                 style={{ backgroundColor: '#dbeafe' }}
                 className="px-2 py-1 text-sm rounded border focus:outline-none focus:ring"
                 value={campaniaSeleccionada}
-                onChange={e => setCampaniaSeleccionada(e.target.value)}
+                onChange={e => setCampaniaSeleccionada(Number(e.target.value))}
               >
-                {[...new Set(capas.map(c => c.campania))].map(camp => (
-                  <option key={camp} value={camp}>{camp}</option>
-                ))}
+                {[...new Set(capas.map(c => c.CampañaID))].map(id => {
+                  const camp = capas.find(c => c.CampañaID === id);
+                  return <option key={id} value={id}>{camp?.NombreCampaña || id}</option>;
+                })}
               </select>
               {/* Select de capa/fecha */}
               <select
@@ -252,11 +266,11 @@ export default function App() {
                 className="px-2 py-1 text-sm rounded border focus:outline-none focus:ring"
                 value={capaSeleccionada?.capa || ""}
                 onChange={e => {
-                  const nueva = capas.find(c => c.capa.toString() === e.target.value && c.campania === campaniaSeleccionada);
+                  const nueva = capas.find(c => c.capa.toString() === e.target.value && c.CampañaID === campaniaSeleccionada);
                   setCapaSeleccionada(nueva);
                 }}
               >
-                {capas.filter(c => c.campania === campaniaSeleccionada).map(c => (
+                {capas.filter(c => c.CampañaID === campaniaSeleccionada).map(c => (
                   <option key={c.capa} value={c.capa}>{`Capa ${c.capa} — ${c.fechaInicio}`}</option>
                 ))}
               </select>
