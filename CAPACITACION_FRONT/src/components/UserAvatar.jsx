@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import PhotoUploadModal from './PhotoUploadModal';
 
-export default function UserAvatar({ onLogout }) {
+export default function UserAvatar({ onLogout, marco = 'marco1.png' }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [photoModalOpen, setPhotoModalOpen] = useState(false);
   const [userPhoto, setUserPhoto] = useState(null);
@@ -106,23 +106,7 @@ export default function UserAvatar({ onLogout }) {
           marginTop: '2px',
           aspectRatio: '1 / 1'
         }}>
-          {/* Frame como fondo */}
-          <img
-            src="/marcos/marco2.png"
-            alt="Marco decorativo"
-            className="absolute pointer-events-none"
-            style={{ 
-              width: '100%', 
-              height: '100%', 
-              top: 0, 
-              left: 0, 
-              zIndex: 1,
-              objectFit: 'contain',
-              aspectRatio: '1 / 1'
-            }}
-          />
-          
-          {/* Avatar centrado dentro del frame */}
+          {/* Avatar centrado detrás del marco */}
           <button
             className="absolute rounded-full shadow-md focus:outline-none bg-white"
             onClick={handleAvatarClick}
@@ -132,7 +116,7 @@ export default function UserAvatar({ onLogout }) {
               height: '65px', 
               top: '22.5px', 
               left: '22.5px', 
-              zIndex: 2,
+              zIndex: 0,
               padding: 0,
               aspectRatio: '1 / 1'
             }}
@@ -152,6 +136,21 @@ export default function UserAvatar({ onLogout }) {
               </div>
             )}
           </button>
+          {/* Marco por encima del avatar */}
+          <img
+            src={`/marcos/${marco}`}
+            alt="Marco decorativo"
+            className="absolute pointer-events-none"
+            style={{ 
+              width: '100%', 
+              height: '100%', 
+              top: 0, 
+              left: 0, 
+              zIndex: 1,
+              objectFit: 'contain',
+              aspectRatio: '1 / 1'
+            }}
+          />
         </div>
         
         {menuOpen && createPortal(

@@ -11,6 +11,8 @@ import { createPortal } from "react-dom";
 import { descargarExcel } from "./utils/excel";
 import DashboardCoordinadora from "./components/DashboardCoordinadora";
 import UserAvatar from "./components/UserAvatar";
+import TiendaMarcos from "./components/TiendaMarcos";
+import RuletaPuntos from "./components/RuletaPuntos";
 
 function getDniFromToken() {
   const token = localStorage.getItem('token');
@@ -51,6 +53,9 @@ export default function App() {
   const resumenBtnRef = useRef(null);
   const resumenPopoverRef = useRef(null);
   const [resumenPos, setResumenPos] = useState({ top: 80, left: window.innerWidth / 2 });
+  const [showTienda, setShowTienda] = useState(false);
+  const [marcoSeleccionado, setMarcoSeleccionado] = useState('marco1.png');
+  const [showRuleta, setShowRuleta] = useState(false);
 
   // Al iniciar, busca todas las capas disponibles para el capacitador
   useEffect(() => {
@@ -193,6 +198,52 @@ export default function App() {
   const porcentajeBajas = post.tablaDatos.length > 0 ? Math.round((bajas / post.tablaDatos.length) * 100) : 0;
   const porcentajeActivos = post.tablaDatos.length > 0 ? Math.round((activos / post.tablaDatos.length) * 100) : 0;
 
+  if (showRuleta) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#297373] to-[#FE7F2D] flex flex-col p-0 m-0">
+        <div className="flex items-center px-6 py-2 bg-white/10 backdrop-blur-lg shadow-md rounded-b-3xl mb-2 relative" style={{ minHeight: 90 }}>
+          {/* Logo y saludo */}
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <img src="/partner.svg" alt="logo" className="w-8 h-8 bg-white/30 rounded-full p-1" />
+            <span className="font-semibold text-white text-base drop-shadow">Hola, bienvenido <span className="font-bold">{
+              `${localStorage.getItem('nombres') || ''} ${localStorage.getItem('apellidoPaterno') || ''} ${localStorage.getItem('apellidoMaterno') || ''}`.trim()
+            } 👋</span></span>
+          </div>
+          {/* Avatar de usuario en la esquina superior derecha */}
+          <div className="ml-auto flex items-center">
+            <UserAvatar onLogout={handleLogout} marco={marcoSeleccionado} />
+          </div>
+        </div>
+        <RuletaPuntos onClose={() => setShowRuleta(false)} />
+      </div>
+    );
+  }
+  if (showTienda) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#297373] to-[#FE7F2D] flex flex-col p-0 m-0">
+        <div className="flex items-center px-6 py-2 bg-white/10 backdrop-blur-lg shadow-md rounded-b-3xl mb-2 relative" style={{ minHeight: 90 }}>
+          {/* Logo y saludo */}
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <img src="/partner.svg" alt="logo" className="w-8 h-8 bg-white/30 rounded-full p-1" />
+            <span className="font-semibold text-white text-base drop-shadow">Hola, bienvenido <span className="font-bold">{
+              `${localStorage.getItem('nombres') || ''} ${localStorage.getItem('apellidoPaterno') || ''} ${localStorage.getItem('apellidoMaterno') || ''}`.trim()
+            } 👋</span></span>
+          </div>
+          {/* Avatar de usuario en la esquina superior derecha */}
+          <div className="ml-auto flex items-center">
+            <UserAvatar onLogout={handleLogout} marco={marcoSeleccionado} />
+          </div>
+        </div>
+        <TiendaMarcos
+          onClose={() => setShowTienda(false)}
+          onSelectMarco={(file) => {
+            setMarcoSeleccionado(file);
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#297373] to-[#FE7F2D] flex flex-col p-0 m-0">
       {/* Barra superior translúcida - Toggle alineado a la derecha del saludo */}
@@ -205,7 +256,7 @@ export default function App() {
           } 👋</span></span>
         </div>
         {/* ToggleTabs y Ver Resumen juntos, centrados */}
-        <div className="absolute left-[47%] top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-4">
+        <div className="absolute left-[55%] top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-4">
           <ToggleTabs active={vista} onChange={setVista} />
           <button
             ref={resumenBtnRef}
@@ -243,10 +294,39 @@ export default function App() {
               </span>
             </div>
           </div>
+          {/* Botón de tienda de marcos al final del bloque central */}
+          <button
+            onClick={() => setShowTienda(true)}
+            className="flex items-center justify-center w-10 h-10 rounded-full bg-white/80 hover:bg-white shadow border border-gray-200 transition ml-6"
+            title="Tienda de marcos"
+          >
+            {/* SVG tienda con toldo y puerta (opción 1) */}
+            <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6">
+              <path d="M3 7L5 3h14l2 4" stroke="#f59e42" strokeWidth="2" fill="none"/>
+              <rect x="2" y="7" width="20" height="4" rx="2" fill="#f59e42" stroke="#f59e42" strokeWidth="2"/>
+              <rect x="4" y="11" width="16" height="9" rx="2" fill="#fff" stroke="#f59e42" strokeWidth="2"/>
+              <rect x="9" y="15" width="3" height="5" rx="1" fill="#f59e42"/>
+            </svg>
+          </button>
+          {/* Botón de ruleta al lado de tienda */}
+          <button
+            onClick={() => setShowRuleta(true)}
+            className="flex items-center justify-center w-10 h-10 rounded-full bg-white/80 hover:bg-white shadow border border-gray-200 transition ml-2"
+            title="Ruleta de puntos"
+          >
+            {/* SVG ruleta/dado */}
+            <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6">
+              <circle cx="12" cy="12" r="10" stroke="#f59e42" strokeWidth="2" fill="#fff" />
+              <circle cx="12" cy="7" r="1.5" fill="#f59e42" />
+              <circle cx="7" cy="12" r="1.5" fill="#f59e42" />
+              <circle cx="17" cy="12" r="1.5" fill="#f59e42" />
+              <circle cx="12" cy="17" r="1.5" fill="#f59e42" />
+            </svg>
+          </button>
         </div>
         {/* Avatar de usuario en la esquina superior derecha */}
-        <div className="ml-auto flex items-center gap-4">
-          <UserAvatar onLogout={handleLogout} />
+        <div className="ml-auto flex items-center">
+          <UserAvatar onLogout={handleLogout} marco={marcoSeleccionado} />
         </div>
       </div>
       {/* Contenido principal compacto */}

@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { api } from '../utils/api';
+import { createPortal } from 'react-dom';
 
 export default function PhotoUploadModal({ isOpen, onClose, onPhotoUpdate }) {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -153,9 +154,9 @@ export default function PhotoUploadModal({ isOpen, onClose, onPhotoUpdate }) {
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+  const modalContent = (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" style={{ zIndex: 9999 }}>
+      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 relative" style={{ zIndex: 10000 }}>
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold text-gray-800">Foto de Perfil</h2>
           <button
@@ -234,4 +235,6 @@ export default function PhotoUploadModal({ isOpen, onClose, onPhotoUpdate }) {
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 } 
