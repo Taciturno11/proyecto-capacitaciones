@@ -10,6 +10,7 @@ import { api } from "./utils/api";
 import { createPortal } from "react-dom";
 import { descargarExcel } from "./utils/excel";
 import DashboardCoordinadora from "./components/DashboardCoordinadora";
+import UserAvatar from "./components/UserAvatar";
 
 function getDniFromToken() {
   const token = localStorage.getItem('token');
@@ -50,23 +51,6 @@ export default function App() {
   const resumenBtnRef = useRef(null);
   const resumenPopoverRef = useRef(null);
   const [resumenPos, setResumenPos] = useState({ top: 80, left: window.innerWidth / 2 });
-
-  // Cerrar el popover al hacer clic fuera
-  useEffect(() => {
-    if (!showResumen) return;
-    function handleClick(e) {
-      if (
-        resumenPopoverRef.current &&
-        !resumenPopoverRef.current.contains(e.target) &&
-        resumenBtnRef.current &&
-        !resumenBtnRef.current.contains(e.target)
-      ) {
-        setShowResumen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [showResumen]);
 
   // Al iniciar, busca todas las capas disponibles para el capacitador
   useEffect(() => {
@@ -135,6 +119,23 @@ export default function App() {
     });
   }, [capaSeleccionada]);
 
+  // Cerrar el popover al hacer clic fuera
+  useEffect(() => {
+    if (!showResumen) return;
+    function handleClick(e) {
+      if (
+        resumenPopoverRef.current &&
+        !resumenPopoverRef.current.contains(e.target) &&
+        resumenBtnRef.current &&
+        !resumenBtnRef.current.contains(e.target)
+      ) {
+        setShowResumen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showResumen]);
+
   useEffect(() => {
     if (showResumen && resumenBtnRef.current) {
       const rect = resumenBtnRef.current.getBoundingClientRect();
@@ -156,8 +157,13 @@ export default function App() {
   }
 
   const handleLogout = () => {
+    console.log('Función handleLogout ejecutada');
     localStorage.removeItem('token');
-    localStorage.removeItem('nombre');
+    localStorage.removeItem('nombres');
+    localStorage.removeItem('apellidoPaterno');
+    localStorage.removeItem('apellidoMaterno');
+    localStorage.removeItem('rol');
+    console.log('localStorage limpiado, recargando página...');
     window.location.reload();
   };
 
@@ -190,7 +196,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#297373] to-[#FE7F2D] flex flex-col p-0 m-0">
       {/* Barra superior translúcida - Toggle alineado a la derecha del saludo */}
-      <div className="flex items-center px-6 py-2 bg-white/10 backdrop-blur-lg shadow-md rounded-b-3xl mb-2 relative" style={{ minHeight: 60 }}>
+      <div className="flex items-center px-6 py-2 bg-white/10 backdrop-blur-lg shadow-md rounded-b-3xl mb-2 relative" style={{ minHeight: 90 }}>
         {/* Logo y saludo */}
         <div className="flex items-center gap-3 flex-shrink-0">
           <img src="/partner.svg" alt="logo" className="w-8 h-8 bg-white/30 rounded-full p-1" />
@@ -208,7 +214,7 @@ export default function App() {
           >
             Ver Resumen
           </button>
-          {/* Indicadores de bajas y activos a la derecha del botón */}
+          {/* KPIs originales restaurados */}
           <div className="flex items-center gap-2 ml-4">
             {/* Activos primero */}
             <div className="flex flex-col items-center">
@@ -238,9 +244,9 @@ export default function App() {
             </div>
           </div>
         </div>
-        {/* Botón cerrar sesión a la derecha */}
-        <div className="flex-1 flex justify-end items-center gap-4">
-          <button onClick={handleLogout} className="bg-gradient-to-r from-[#297373] to-[#FE7F2D] text-white px-4 py-1.5 rounded-full font-semibold text-sm shadow hover:opacity-90 transition">Cerrar sesión</button>
+        {/* Avatar de usuario en la esquina superior derecha */}
+        <div className="ml-auto flex items-center gap-4">
+          <UserAvatar onLogout={handleLogout} />
         </div>
       </div>
       {/* Contenido principal compacto */}
@@ -322,31 +328,31 @@ export default function App() {
             </div>
           </div>
         )}
-        {showResumen && createPortal(
-          <div
-            ref={resumenPopoverRef}
-            className="z-[999] w-[340px] bg-white rounded-xl shadow-2xl border border-gray-200 p-0"
-            style={{ position: 'fixed', top: resumenPos.top, left: resumenPos.left, transform: 'translateX(-50%)' }}
-          >
-            <div className="flex items-center justify-between px-6 pt-4 pb-0">
-              <span className="text-2xl font-bold text-gray-800">Resumen</span>
-              <button
-                onClick={() => setShowResumen(false)}
-                className="text-gray-400 hover:text-gray-700 text-2xl font-bold focus:outline-none"
-                aria-label="Cerrar"
-              >
-                ×
-              </button>
-            </div>
-            <ResumenCard postCtx={post} capInfo={{
-              nombres: localStorage.getItem('nombres'),
-              apellidoPaterno: localStorage.getItem('apellidoPaterno'),
-              apellidoMaterno: localStorage.getItem('apellidoMaterno'),
-            }} campania={capaSeleccionada?.campania} hideTitle />
-          </div>,
-          document.body
-        )}
       </div>
+      {showResumen && createPortal(
+        <div
+          ref={resumenPopoverRef}
+          className="z-[999] w-[340px] bg-white rounded-xl shadow-2xl border border-gray-200 p-0"
+          style={{ position: 'fixed', top: resumenPos.top, left: resumenPos.left, transform: 'translateX(-50%)' }}
+        >
+          <div className="flex items-center justify-between px-6 pt-4 pb-0">
+            <span className="text-2xl font-bold text-gray-800">Resumen</span>
+            <button
+              onClick={() => setShowResumen(false)}
+              className="text-gray-400 hover:text-gray-700 text-2xl font-bold focus:outline-none"
+              aria-label="Cerrar"
+            >
+              ×
+            </button>
+          </div>
+          <ResumenCard postCtx={post} capInfo={{
+            nombres: localStorage.getItem('nombres'),
+            apellidoPaterno: localStorage.getItem('apellidoPaterno'),
+            apellidoMaterno: localStorage.getItem('apellidoMaterno'),
+          }} campania={capaSeleccionada?.campania} hideTitle />
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

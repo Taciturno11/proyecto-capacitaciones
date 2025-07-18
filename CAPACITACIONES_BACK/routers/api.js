@@ -6,6 +6,9 @@ const { Router } = require("express");
 const sql        = require("mssql");
 const router     = Router();
 const jwt = require('jsonwebtoken');
+const multer     = require('multer');
+const path       = require('path');
+const fs         = require('fs');
 require('dotenv').config();
 
 /* Duración de campañas (idéntico al original) */
@@ -783,6 +786,272 @@ router.post('/postulantes/estado', async (req, res) => {
   } catch (e) {
     await tx.rollback();
     res.status(500).json({ error: "No se pudo actualizar el estado final", details: e.message });
+  }
+});
+
+// ───────────────────── Configuración de Multer ─────────────────────
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = path.join(__dirname, '../uploads');
+    // Crear directorio si no existe
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    // Generar nombre único: dni_timestamp.extensión
+    const dni = req.user.dni;
+    const timestamp = Date.now();
+    const ext = path.extname(file.originalname);
+    cb(null, `${dni}_${timestamp}${ext}`);
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB máximo
+  },
+  fileFilter: function (req, file, cb) {
+    // Solo permitir imágenes
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Solo se permiten archivos de imagen'), false);
+    }
+  }
+});
+
+// ───────────────────── Endpoints de Fotos ─────────────────────
+// Subir foto de perfil
+router.post('/upload-photo', authMiddleware, upload.single('photo'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No se subió ningún archivo' });
+    }
+
+    const dni = req.user.dni;
+    const filename = req.file.filename;
+    const photoUrl = `/uploads/${filename}`;
+
+    // Actualizar la base de datos con la nueva foto
+    await R()
+      .input('dni', sql.VarChar(20), dni)
+      .input('fotoPerfil', sql.VarChar(255), photoUrl)
+      .query(`
+        UPDATE PRI.Empleados 
+        SET FotoPerfil = @fotoPerfil 
+        WHERE DNI = @dni
+      `);
+
+    res.json({ 
+      success: true, 
+      photoUrl,
+      message: 'Foto subida exitosamente' 
+    });
+  } catch (error) {
+    console.error('Error al subir foto:', error);
+    res.status(500).json({ error: 'Error al subir la foto' });
+  }
+});
+
+// Obtener foto de perfil del capacitador
+router.get('/photo/:dni', async (req, res) => {
+  try {
+    const { dni } = req.params;
+    const result = await R()
+      .input('dni', sql.VarChar(20), dni)
+      .query(`
+        SELECT FotoPerfil 
+        FROM PRI.Empleados 
+        WHERE DNI = @dni
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    const fotoPerfil = result.recordset[0].FotoPerfil;
+    res.json({ photoUrl: fotoPerfil });
+  } catch (error) {
+    console.error('Error al obtener foto:', error);
+    res.status(500).json({ error: 'Error al obtener la foto' });
+  }
+});
+
+// Eliminar foto de perfil
+router.delete('/photo', authMiddleware, async (req, res) => {
+  try {
+    const dni = req.user.dni;
+    
+    // Obtener la foto actual
+    const result = await R()
+      .input('dni', sql.VarChar(20), dni)
+      .query(`
+        SELECT FotoPerfil 
+        FROM PRI.Empleados 
+        WHERE DNI = @dni
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    const fotoPerfil = result.recordset[0].FotoPerfil;
+    
+    // Eliminar archivo físico si existe
+    if (fotoPerfil && fotoPerfil.startsWith('/uploads/')) {
+      const filePath = path.join(__dirname, '..', fotoPerfil);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+
+    // Actualizar base de datos
+    await R()
+      .input('dni', sql.VarChar(20), dni)
+      .query(`
+        UPDATE PRI.Empleados 
+        SET FotoPerfil = NULL 
+        WHERE DNI = @dni
+      `);
+
+    res.json({ 
+      success: true, 
+      message: 'Foto eliminada exitosamente' 
+    });
+  } catch (error) {
+    console.error('Error al eliminar foto:', error);
+    res.status(500).json({ error: 'Error al eliminar la foto' });
+  }
+});
+
+/* ───────────────────── Fotos de Perfil ───────────────────── */
+// Crear tabla si no existe
+router.post("/fotos-perfil/init", async (req, res) => {
+  try {
+    await R().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Fotos_Perfil' AND xtype='U')
+      CREATE TABLE Fotos_Perfil (
+        id INT IDENTITY(1,1) PRIMARY KEY,
+        dni VARCHAR(20) NOT NULL UNIQUE,
+        foto_url VARCHAR(500) NOT NULL,
+        fecha_creacion DATETIME DEFAULT GETDATE(),
+        fecha_actualizacion DATETIME DEFAULT GETDATE()
+      )
+    `);
+    res.json({ message: "Tabla Fotos_Perfil creada o ya existía" });
+  } catch (e) { 
+    console.error(e); 
+    res.status(500).json({ error: "Error al crear tabla" }); 
+  }
+});
+
+// Subir foto de perfil
+router.post("/fotos-perfil/upload", authMiddleware, upload.single('foto'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No se proporcionó archivo" });
+    }
+
+    const dni = req.user.dni;
+    const fotoUrl = `/uploads/${req.file.filename}`;
+
+    // Insertar o actualizar en la tabla Fotos_Perfil
+    await R()
+      .input("dni", sql.VarChar(20), dni)
+      .input("fotoUrl", sql.VarChar(500), fotoUrl)
+      .query(`
+        MERGE Fotos_Perfil AS target
+        USING (SELECT @dni AS dni, @fotoUrl AS foto_url) AS source
+        ON target.dni = source.dni
+        WHEN MATCHED THEN
+          UPDATE SET 
+            foto_url = source.foto_url,
+            fecha_actualizacion = GETDATE()
+        WHEN NOT MATCHED THEN
+          INSERT (dni, foto_url)
+          VALUES (source.dni, source.foto_url);
+      `);
+
+    res.json({ 
+      success: true, 
+      fotoUrl,
+      message: "Foto de perfil actualizada correctamente" 
+    });
+  } catch (e) {
+    console.error("Error al subir foto:", e);
+    res.status(500).json({ error: "Error al subir foto de perfil" });
+  }
+});
+
+// Obtener foto de perfil
+router.get("/fotos-perfil/:dni", async (req, res) => {
+  try {
+    const { dni } = req.params;
+    const { recordset } = await R()
+      .input("dni", sql.VarChar(20), dni)
+      .query(`
+        SELECT foto_url, fecha_creacion, fecha_actualizacion
+        FROM Fotos_Perfil
+        WHERE dni = @dni
+      `);
+
+    if (recordset.length === 0) {
+      return res.status(404).json({ error: "Foto no encontrada" });
+    }
+
+    res.json(recordset[0]);
+  } catch (e) {
+    console.error("Error al obtener foto:", e);
+    res.status(500).json({ error: "Error al obtener foto de perfil" });
+  }
+});
+
+// Eliminar foto de perfil
+router.delete("/fotos-perfil/:dni", authMiddleware, async (req, res) => {
+  try {
+    const dni = req.user.dni;
+    
+    // Verificar que el usuario solo puede eliminar su propia foto
+    if (dni !== req.params.dni) {
+      return res.status(403).json({ error: "No autorizado para eliminar esta foto" });
+    }
+
+    // Obtener la URL de la foto antes de eliminar
+    const { recordset } = await R()
+      .input("dni", sql.VarChar(20), dni)
+      .query(`
+        SELECT foto_url FROM Fotos_Perfil WHERE dni = @dni
+      `);
+
+    if (recordset.length === 0) {
+      return res.status(404).json({ error: "Foto no encontrada" });
+    }
+
+    const fotoUrl = recordset[0].foto_url;
+    const filePath = path.join(__dirname, '..', 'uploads', path.basename(fotoUrl));
+
+    // Eliminar de la base de datos
+    await R()
+      .input("dni", sql.VarChar(20), dni)
+      .query(`
+        DELETE FROM Fotos_Perfil WHERE dni = @dni
+      `);
+
+    // Eliminar archivo físico
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+
+    res.json({ 
+      success: true, 
+      message: "Foto de perfil eliminada correctamente" 
+    });
+  } catch (e) {
+    console.error("Error al eliminar foto:", e);
+    res.status(500).json({ error: "Error al eliminar foto de perfil" });
   }
 });
 
