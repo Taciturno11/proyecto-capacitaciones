@@ -1,5 +1,4 @@
 import React, { useState, useRef } from 'react';
-import { api } from '../utils/api';
 import { createPortal } from 'react-dom';
 
 export default function PhotoUploadModal({ isOpen, onClose, onPhotoUpdate }) {
@@ -154,6 +153,12 @@ export default function PhotoUploadModal({ isOpen, onClose, onPhotoUpdate }) {
 
   if (!isOpen) return null;
 
+  // Construir la URL absoluta para la foto de perfil actual
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+  const photoUrl = currentPhoto?.startsWith('/uploads/')
+    ? API_URL + currentPhoto
+    : currentPhoto;
+
   const modalContent = (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" style={{ zIndex: 9999 }}>
       <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 relative" style={{ zIndex: 10000 }}>
@@ -173,7 +178,7 @@ export default function PhotoUploadModal({ isOpen, onClose, onPhotoUpdate }) {
             <h3 className="text-sm font-medium text-gray-700 mb-2">Foto actual:</h3>
             <div className="relative inline-block">
               <img
-                src={currentPhoto}
+                src={photoUrl}
                 alt="Foto de perfil actual"
                 className="w-24 h-24 rounded-full object-cover border-2 border-gray-200"
               />
