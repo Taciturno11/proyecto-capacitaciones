@@ -20,7 +20,8 @@ const DURACION = {
   "Ventas Movil INB"  : { cap:5 , ojt:5 },
   "Portabilidad POST" : { cap:5 , ojt:5 },
   "Migracion"         : { cap:3 , ojt:5 },
-  "Portabilidad PPA"  : { cap:5 , ojt:5 }
+  "Portabilidad PPA"  : { cap:5 , ojt:5 },
+  "Crosselling"       : { cap:8 , ojt:5 } // <-- Actualizado según requerimiento
 };
 
 /* Función para normalizar nombres de campaña (compatible hacia atrás) */
@@ -42,7 +43,8 @@ function normalizarCampania(nombre) {
     'portabilidad post': 'Portabilidad POST',
     'portabilidad ppa': 'Portabilidad PPA',
     'migracion': 'Migracion',
-    'migración': 'Migracion'
+    'migración': 'Migracion',
+    'crosselling': 'Crosselling' // <-- Asegura normalización
   };
   
   // Si existe una variación conocida, usar el nombre canónico
@@ -201,10 +203,12 @@ router.get('/postulantes', authMiddleware, async (req, res) => {
           AND FORMAT(p.FechaInicio,'yyyy-MM-dd') = @fechaIni
       `);
 
+    // Obtener el nombre de la campaña del primer postulante (si existe)
+    const nombreCampania = post.recordset[0]?.NombreCampaña || '';
     res.json({
       postulantes : post.recordset,
       asistencias : asis.recordset,
-      duracion    : obtenerDuracion('')
+      duracion    : obtenerDuracion(nombreCampania)
     });
   } catch (e) { console.error(e); res.sendStatus(500); }
 });
