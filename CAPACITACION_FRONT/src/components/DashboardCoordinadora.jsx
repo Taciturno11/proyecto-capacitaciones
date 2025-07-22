@@ -3,6 +3,9 @@ import { api } from "../utils/api";
 import { Bar, Pie } from "react-chartjs-2";
 import { Chart, CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend } from "chart.js";
 import { ExclamationTriangleIcon } from '@heroicons/react/24/solid';
+import UserAvatar from './UserAvatar';
+import TiendaMarcos from './TiendaMarcos';
+import PhotoUploadModal from './PhotoUploadModal';
 Chart.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend);
 
 export default function DashboardCoordinadora() {
@@ -12,6 +15,14 @@ export default function DashboardCoordinadora() {
   const [mes, setMes] = useState("");
   const [campanias, setCampanias] = useState([]);
   const [meses, setMeses] = useState([]);
+  const [showTiendaMarcos, setShowTiendaMarcos] = React.useState(false);
+  const [marcoActual, setMarcoActual] = React.useState(localStorage.getItem('marco') || 'marco1.png');
+  const [marcoPreview, setMarcoPreview] = React.useState(null);
+  const [showPhotoModal, setShowPhotoModal] = React.useState(false);
+  const nombres = localStorage.getItem('nombres') || '';
+  const apellidoPaterno = localStorage.getItem('apellidoPaterno') || '';
+  const apellidoMaterno = localStorage.getItem('apellidoMaterno') || '';
+  const nombreCompleto = `${nombres} ${apellidoPaterno} ${apellidoMaterno}`.trim();
 
   useEffect(() => {
     const dni = localStorage.getItem("dni") || JSON.parse(atob(localStorage.getItem("token").split('.')[1])).dni;
@@ -86,14 +97,44 @@ export default function DashboardCoordinadora() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#297373] to-[#FE7F2D] flex flex-col p-0 m-0">
-      <div className="flex items-center justify-between px-8 py-6 bg-white/10 backdrop-blur-lg shadow-md rounded-b-3xl mb-6">
-        <div className="flex items-center gap-3">
-          <img src="/partner.svg" alt="logo" className="w-10 h-10 bg-white/30 rounded-full p-1" />
-          <span className="font-bold text-white text-2xl drop-shadow">Panel de Coordinadora</span>
+    <div className="min-h-screen" style={{ background: '#f7f9fd' }}>
+      <div className="flex items-center justify-between px-8 py-3 bg-white shadow-md rounded-b-3xl mb-4">
+        <div className="flex flex-col gap-0.5">
+          <div className="flex items-center gap-2">
+            <img src="/partner.svg" alt="logo" className="w-9 h-9 bg-white/30 rounded-full p-1" />
+            <span className="font-bold text-[#22314a] text-xl">Panel de Coordinadora</span>
+          </div>
+          <span className="ml-12 text-base text-[#22314a] font-bold leading-tight flex items-center gap-2">{nombreCompleto} <span className="text-2xl">👋</span></span>
         </div>
-        <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="bg-gradient-to-r from-[#297373] to-[#FE7F2D] text-white px-6 py-2 rounded-full font-semibold text-base shadow hover:opacity-90 transition">Cerrar sesión</button>
+        <div className="flex items-center">
+          <button onClick={() => setShowTiendaMarcos(true)}
+            className="flex items-center justify-center w-10 h-10 rounded-full bg-blue-100 text-blue-700 shadow hover:bg-blue-200 transition mr-14"
+            title="Tienda de Marcos"
+            aria-label="Tienda de Marcos"
+          >
+            {/* Icono de tienda, puedes reemplazar por un SVG si tienes uno */}
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 9.75V7.5A2.25 2.25 0 015.25 5.25h13.5A2.25 2.25 0 0121 7.5v2.25M3 9.75l1.5 8.25A2.25 2.25 0 006.72 20.25h10.56a2.25 2.25 0 002.22-2.25l1.5-8.25M3 9.75h18" />
+              <rect x="6.75" y="13.5" width="3" height="3" rx="0.75" stroke="currentColor" strokeWidth="1.5" fill="none" />
+              <rect x="14.25" y="13.5" width="3" height="3" rx="0.75" stroke="currentColor" strokeWidth="1.5" fill="none" />
+            </svg>
+          </button>
+          <UserAvatar onLogout={() => { localStorage.clear(); window.location.reload(); }} marco={marcoPreview || marcoActual} />
+        </div>
       </div>
+      {showTiendaMarcos && (
+        <div className="fixed left-0 right-0 z-50 flex flex-col items-center justify-start pt-8 bg-[#f7f9fd] bg-opacity-98 overflow-auto"
+             style={{top: '104px', height: 'calc(100vh - 104px)', width: '100vw'}}>
+          <TiendaMarcos
+            onClose={() => { setShowTiendaMarcos(false); setMarcoPreview(null); }}
+            onSelectMarco={(file) => {
+              setMarcoActual(file);
+              localStorage.setItem('marco', file);
+            }}
+          />
+          <div className="mt-2 text-xs text-gray-400">* El cambio solo se guarda definitivamente en tu perfil cuando lo selecciones en tu menú de usuario.</div>
+        </div>
+      )}
 
       {/* Filtros */}
       <div className="flex gap-4 px-8 mb-4">

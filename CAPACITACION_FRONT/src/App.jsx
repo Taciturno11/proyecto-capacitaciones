@@ -777,15 +777,18 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#297373] to-[#FE7F2D] flex flex-col p-0 m-0">
+    <div className="min-h-screen" style={{ background: '#f7f9fd' }}>
       {/* Barra superior translúcida - Toggle alineado a la derecha del saludo */}
-      <div className="flex items-center px-6 py-2 bg-white/10 backdrop-blur-lg shadow-md rounded-b-3xl mb-2 relative" style={{ minHeight: 90 }}>
+      <div className="flex items-center px-6 py-2 bg-white shadow-md rounded-b-3xl mb-2 relative" style={{ minHeight: 90 }}>
         {/* Logo y saludo */}
         <div className="flex items-center gap-3 flex-shrink-0">
           <img src="/partner.svg" alt="logo" className="w-8 h-8 bg-white/30 rounded-full p-1" />
-          <span className="font-semibold text-white text-base drop-shadow">Hola, bienvenido <span className="font-bold">{
-            `${localStorage.getItem('nombres') || ''} ${localStorage.getItem('apellidoPaterno') || ''} ${localStorage.getItem('apellidoMaterno') || ''}`.trim()
-          } 👋</span></span>
+          <div className="flex flex-col">
+            <span className="text-[#22314a] text-base">Hola, bienvenido</span>
+            <span className="font-bold text-[#22314a] text-lg">{
+              `${localStorage.getItem('nombres') || ''} ${localStorage.getItem('apellidoPaterno') || ''} ${localStorage.getItem('apellidoMaterno') || ''}`.trim()
+            } 👋</span>
+          </div>
         </div>
         {/* ToggleTabs y Ver Resumen juntos, centrados */}
         <div className="absolute left-[55%] top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-4">
