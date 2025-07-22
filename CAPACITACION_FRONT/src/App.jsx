@@ -13,6 +13,7 @@ import DashboardCoordinadora from "./components/DashboardCoordinadora";
 import UserAvatar from "./components/UserAvatar";
 import TiendaMarcos from "./components/TiendaMarcos";
 import RuletaPuntos from "./components/RuletaPuntos";
+import Avataaars from 'avataaars';
 
 function getDniFromToken() {
   const token = localStorage.getItem('token');
@@ -56,6 +57,185 @@ export default function App() {
   const [showTienda, setShowTienda] = useState(false);
   const [marcoSeleccionado, setMarcoSeleccionado] = useState('marco1.png');
   const [showRuleta, setShowRuleta] = useState(false);
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
+  const [showAvatarView, setShowAvatarView] = useState(false);
+  const [ropa, setRopa] = useState('ShirtCrewNeck');
+  const [cabello, setCabello] = useState('ShaggyMullet');
+  const [accesorio, setAccesorio] = useState('Round');
+  const [skinColor, setSkinColor] = useState('Light');
+  const skinColorOptions = [
+    { value: 'Tanned', label: 'Tanned' },
+    { value: 'Yellow', label: 'Yellow' },
+    { value: 'Pale', label: 'Pale' },
+    { value: 'Light', label: 'Light' },
+    { value: 'Brown', label: 'Brown' },
+    { value: 'DarkBrown', label: 'Dark Brown' },
+    { value: 'Black', label: 'Black' },
+  ];
+
+  const ropaOptions = [
+    { value: 'ShirtCrewNeck', label: 'Shirt Crew Neck' },
+    { value: 'ShirtScoopNeck', label: 'Shirt Scoop Neck' },
+    { value: 'ShirtVNeck', label: 'Shirt V-Neck' },
+    { value: 'Hoodie', label: 'Hoodie' },
+    { value: 'BlazerShirt', label: 'Blazer + Shirt' },
+    { value: 'BlazerSweater', label: 'Blazer + Sweater' },
+    { value: 'GraphicShirt', label: 'Graphic Shirt' },
+    { value: 'CollarSweater', label: 'Collar Sweater' },
+    { value: 'Overall', label: 'Overall' },
+  ];
+  const cabelloOptions = [
+    { value: 'ShortHairShaggyMullet', label: 'Shaggy Mullet Corto' },
+    { value: 'ShortHairShortCurly', label: 'Short Curly' },
+    { value: 'LongHairStraight', label: 'Long Hair Straight' },
+    { value: 'NoHair', label: 'Sin Cabello' },
+    { value: 'ShortHairDreads01', label: 'Dreads Cortos' },
+    { value: 'ShortHairFrizzle', label: 'Frizzle' },
+    { value: 'LongHairCurly', label: 'Largo Rizado' },
+    { value: 'LongHairStraight2', label: 'Largo Liso 2' },
+    { value: 'LongHairFro', label: 'Afro Largo' },
+    { value: 'LongHairBigHair', label: 'Big Hair' },
+    { value: 'ShortHairDreads02', label: 'Dreads Cortos 2' },
+    { value: 'ShortHairFrizzle', label: 'Frizzle' },
+    { value: 'ShortHairTheCaesar', label: 'The Caesar' },
+    { value: 'ShortHairTheCaesarSidePart', label: 'The Caesar Side Part' },
+    { value: 'ShortHairSides', label: 'Sides' },
+    { value: 'ShortHairRound', label: 'Round' },
+    { value: 'LongHairNotTooLong', label: 'Not Too Long' },
+    { value: 'LongHairMiaWallace', label: 'Mia Wallace' },
+    { value: 'LongHairDreads', label: 'Largo Dreads' },
+    { value: 'LongHairFroBand', label: 'Afro Band' },
+    { value: 'LongHairBob', label: 'Bob' },
+    { value: 'LongHairBun', label: 'Bun' },
+    { value: 'LongHairCurvy', label: 'Curvy' },
+    { value: 'LongHairDreads', label: 'Largo Dreads' },
+    { value: 'LongHairFrida', label: 'Frida' },
+    { value: 'LongHairNotTooLong', label: 'Not Too Long' },
+    { value: 'LongHairStraightStrand', label: 'Straight Strand' },
+  ];
+  const accesorioOptions = [
+    { value: 'Blank', label: 'Ninguno' },
+    { value: 'Kurt', label: 'Gafas Kurt' },
+    { value: 'Prescription01', label: 'Gafas Receta 1' },
+    { value: 'Prescription02', label: 'Gafas Receta 2' },
+    { value: 'Round', label: 'Gafas Redondas' },
+    { value: 'Sunglasses', label: 'Gafas de Sol' },
+    { value: 'Wayfarers', label: 'Wayfarers' },
+    // Extras de Avataaars
+    { value: 'Sunglasses', label: 'Gafas de Sol (Extra)' },
+    { value: 'Wayfarers', label: 'Wayfarers (Extra)' },
+  ];
+
+  // Cabellos largos incompatibles con accesorios
+  const cabellosSinAccesorios = [
+    'LongHairShaggyMullet', 'LongHairStraight', 'LongHairCurly', 'LongHairStraight2', 'LongHairFro', 'LongHairBigHair'
+  ];
+  const accesorioIncompatible = cabellosSinAccesorios.includes(cabello) && accesorio !== 'Blank';
+
+  const [eyeType, setEyeType] = useState('Default');
+  const eyeTypeOptions = [
+    { value: 'Default', label: 'Normal' },
+    { value: 'Happy', label: 'Feliz' },
+    { value: 'Squint', label: 'Entrecerrados' },
+    { value: 'Surprised', label: 'Sorprendido' },
+    { value: 'Wink', label: 'Guiño' },
+    { value: 'WinkWacky', label: 'Guiño Loco' },
+    { value: 'Cry', label: 'Llorando' },
+    { value: 'Dizzy', label: 'Mareado' },
+    { value: 'EyeRoll', label: 'Ojos en blanco' },
+    { value: 'Hearts', label: 'Enamorado' },
+    { value: 'Side', label: 'De lado' },
+    { value: 'Close', label: 'Cerrados' },
+    { value: 'Sleepy', label: 'Soñoliento' },
+    { value: 'Angry', label: 'Enojado' },
+    { value: 'Sad', label: 'Triste' },
+  ];
+
+  const [openSection, setOpenSection] = useState('ropa');
+  const mainSectionTabs = [
+    { key: 'ropa', label: 'Ropa' },
+    { key: 'cabello', label: 'Cabello' },
+    { key: 'cejas', label: 'Cejas' },
+    { key: 'boca', label: 'Boca' },
+    { key: 'facial', label: 'Vello Facial' },
+    { key: 'clotheColor', label: 'Color de Ropa' },
+    { key: 'accesorio', label: 'Accesorios' },
+    { key: 'piel', label: 'Piel' },
+    { key: 'ojos', label: 'Ojos' },
+  ];
+  // Eliminar secondarySectionTabs y cualquier referencia a tabs secundarios
+
+  const [hairColor, setHairColor] = useState('Brown');
+  const hairColorOptions = [
+    { value: 'Auburn', label: 'Castaño rojizo' },
+    { value: 'Black', label: 'Negro' },
+    { value: 'Blonde', label: 'Rubio' },
+    { value: 'BlondeGolden', label: 'Rubio Dorado' },
+    { value: 'Brown', label: 'Castaño' },
+    { value: 'BrownDark', label: 'Castaño Oscuro' },
+    { value: 'PastelPink', label: 'Rosa Pastel' },
+    { value: 'Platinum', label: 'Platino' },
+    { value: 'Red', label: 'Rojo' },
+    { value: 'SilverGray', label: 'Gris Plata' },
+    { value: 'Blue', label: 'Azul' },
+  ];
+
+  const [eyebrowType, setEyebrowType] = useState('Default');
+  const eyebrowTypeOptions = [
+    { value: 'Default', label: 'Normal' },
+    { value: 'DefaultNatural', label: 'Natural' },
+    { value: 'Angry', label: 'Enojado' },
+    { value: 'AngryNatural', label: 'Enojado Natural' },
+    { value: 'FlatNatural', label: 'Plano Natural' },
+    { value: 'RaisedExcited', label: 'Levantado' },
+    { value: 'SadConcerned', label: 'Preocupado' },
+    { value: 'UnibrowNatural', label: 'Uniceja' },
+    { value: 'UpDown', label: 'Arriba-Abajo' },
+    { value: 'UpDownNatural', label: 'Arriba-Abajo Natural' },
+  ];
+
+  const [mouthType, setMouthType] = useState('Smile');
+  const mouthTypeOptions = [
+    { value: 'Smile', label: 'Sonrisa' },
+    { value: 'Default', label: 'Normal' },
+    { value: 'Twinkle', label: 'Brillo' },
+    { value: 'Serious', label: 'Serio' },
+    { value: 'Sad', label: 'Triste' },
+    { value: 'ScreamOpen', label: 'Grito' },
+    { value: 'Disbelief', label: 'Incrédulo' },
+    { value: 'Eating', label: 'Comiendo' },
+    { value: 'Grimace', label: 'Mueca' },
+    { value: 'Tongue', label: 'Lengua' },
+  ];
+
+  const [facialHairType, setFacialHairType] = useState('Blank');
+  const facialHairTypeOptions = [
+    { value: 'Blank', label: 'Ninguno' },
+    { value: 'BeardMedium', label: 'Barba Media' },
+    { value: 'BeardLight', label: 'Barba Ligera' },
+    { value: 'BeardMajestic', label: 'Barba Majestuosa' },
+    { value: 'MoustacheFancy', label: 'Bigote Elegante' },
+    { value: 'MoustacheMagnum', label: 'Bigote Magnum' },
+  ];
+
+  const [clotheColor, setClotheColor] = useState('PastelGreen');
+  const clotheColorOptions = [
+    { value: 'Black', label: 'Negro' },
+    { value: 'Blue01', label: 'Azul 1' },
+    { value: 'Blue02', label: 'Azul 2' },
+    { value: 'Blue03', label: 'Azul 3' },
+    { value: 'Gray01', label: 'Gris 1' },
+    { value: 'Gray02', label: 'Gris 2' },
+    { value: 'Heather', label: 'Heather' },
+    { value: 'PastelBlue', label: 'Azul Pastel' },
+    { value: 'PastelGreen', label: 'Verde Pastel' },
+    { value: 'PastelOrange', label: 'Naranja Pastel' },
+    { value: 'PastelRed', label: 'Rojo Pastel' },
+    { value: 'PastelYellow', label: 'Amarillo Pastel' },
+    { value: 'Pink', label: 'Rosa' },
+    { value: 'Red', label: 'Rojo' },
+    { value: 'White', label: 'Blanco' },
+  ];
 
   // Al iniciar, busca todas las capas disponibles para el capacitador
   useEffect(() => {
@@ -243,6 +423,358 @@ export default function App() {
       </div>
     );
   }
+  if (showAvatarView) {
+    return (
+      <div className="min-h-screen w-full flex flex-col bg-gradient-to-br from-[#297373] to-[#FE7F2D] items-center">
+        <div className="flex flex-col items-center w-full max-w-3xl mx-auto mt-8">
+          <Avataaars
+            style={{ width: 220, height: 220 }}
+            avatarStyle="Circle"
+            topType={cabello}
+            accessoriesType={accesorio}
+            hairColor={hairColor}
+            facialHairType={facialHairType}
+            clotheType={ropa}
+            clotheColor={clotheColor}
+            eyeType={eyeType}
+            eyebrowType={eyebrowType}
+            mouthType={mouthType}
+            skinColor={skinColor}
+          />
+          <button
+            onClick={() => setShowAvatarView(false)}
+            className="mt-6 text-lg px-4 py-2 rounded-full bg-white/80 text-[#297373] font-semibold shadow hover:bg-white border border-[#e0d7ce] focus:outline-none"
+          >
+            Volver
+          </button>
+        </div>
+        <div className="w-full max-w-3xl mx-auto mt-8 bg-white/80 rounded-2xl shadow-lg p-8 flex flex-col gap-4">
+          {/* Tabs principales */}
+          <div className="flex flex-row justify-center gap-2 mb-2 flex-wrap">
+            {mainSectionTabs.map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setOpenSection(tab.key)}
+                className={`px-6 py-2 rounded-full font-bold text-lg transition-all border-2 ${openSection === tab.key ? 'bg-green-100 text-green-700 border-green-500' : 'bg-white text-gray-800 border-transparent hover:bg-green-50'}`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          {/* Galería visual de la sección activa */}
+          {openSection === 'ropa' && (
+            <>
+              {/* Barrita de color de ropa con círculos sólidos */}
+              <div className="flex flex-row gap-3 justify-center mb-4">
+                {clotheColorOptions.map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setClotheColor(opt.value)}
+                    className={`rounded-full border-2 transition-all ${clotheColor === opt.value ? 'border-black' : 'border-gray-300'} bg-white flex items-center justify-center`}
+                    style={{ minWidth: 36, minHeight: 36, width: 36, height: 36, padding: 0 }}
+                    title={opt.label}
+                  >
+                    <span
+                      style={{
+                        display: 'block',
+                        width: 24,
+                        height: 24,
+                        borderRadius: '50%',
+                        background: getClotheColorHex(opt.value),
+                        border: '1.5px solid #e5e7eb',
+                      }}
+                    />
+                  </button>
+                ))}
+              </div>
+              {/* Grid de estilos de ropa */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
+                {ropaOptions.map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setRopa(opt.value)}
+                    className={`rounded-lg border-2 p-1 transition-all flex flex-col items-center ${ropa === opt.value ? 'border-green-500 bg-green-50' : 'border-transparent bg-white'}`}
+                    title={opt.label}
+                  >
+                    <Avataaars
+                      style={{ width: 48, height: 48 }}
+                      avatarStyle="Circle"
+                      topType={cabello}
+                      hairColor={hairColor}
+                      accessoriesType="Blank"
+                      facialHairType={facialHairType}
+                      clotheType={opt.value}
+                      clotheColor={clotheColor}
+                      eyeType={eyeType}
+                      eyebrowType={eyebrowType}
+                      mouthType={mouthType}
+                      skinColor={skinColor}
+                    />
+                    <div className="text-xs text-center mt-1 whitespace-nowrap">{opt.label}</div>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          {openSection === 'cabello' && (
+            <>
+              {/* Barrita de color de cabello con círculos sólidos y arcoíris */}
+              <div className="flex flex-row gap-3 justify-center mb-4">
+                {hairColorOptions.map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setHairColor(opt.value)}
+                    className={`rounded-full border-2 transition-all ${hairColor === opt.value ? 'border-black' : 'border-gray-300'} bg-white flex items-center justify-center`}
+                    style={{ minWidth: 36, minHeight: 36, width: 36, height: 36, padding: 0 }}
+                    title={opt.label}
+                  >
+                    {opt.value === 'Rainbow' ? (
+                      <span
+                        style={{
+                          display: 'block',
+                          width: 24,
+                          height: 24,
+                          borderRadius: '50%',
+                          background: 'conic-gradient(red, orange, yellow, green, blue, indigo, violet, red)',
+                          border: '1.5px solid #e5e7eb',
+                        }}
+                      />
+                    ) : (
+                      <span
+                        style={{
+                          display: 'block',
+                          width: 24,
+                          height: 24,
+                          borderRadius: '50%',
+                          background: getHairColorHex(opt.value),
+                          border: '1.5px solid #e5e7eb',
+                        }}
+                      />
+                    )}
+                  </button>
+                ))}
+              </div>
+              {/* Grid de estilos de cabello */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
+                {cabelloOptions.map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setCabello(opt.value)}
+                    className={`rounded-lg border-2 p-1 transition-all flex flex-col items-center ${cabello === opt.value ? 'border-green-500 bg-green-50' : 'border-transparent bg-white'}`}
+                    title={opt.label}
+                  >
+                    <Avataaars
+                      style={{ width: 48, height: 48 }}
+                      avatarStyle="Circle"
+                      topType={opt.value}
+                      hairColor={hairColor === 'Rainbow' ? 'PastelPink' : hairColor}
+                      accessoriesType="Blank"
+                      facialHairType={facialHairType}
+                      clotheType={ropa}
+                      eyeType={eyeType}
+                      eyebrowType={eyebrowType}
+                      mouthType={mouthType}
+                      skinColor={skinColor}
+                    />
+                    <div className="text-xs text-center mt-1 whitespace-nowrap">{opt.label}</div>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          {openSection === 'cejas' && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
+              {eyebrowTypeOptions.map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => setEyebrowType(opt.value)}
+                  className={`rounded-lg border-2 p-1 transition-all flex flex-col items-center ${eyebrowType === opt.value ? 'border-green-500 bg-green-50' : 'border-transparent bg-white'}`}
+                  title={opt.label}
+                >
+                  <Avataaars
+                    style={{ width: 48, height: 48 }}
+                    avatarStyle="Circle"
+                    topType={cabello}
+                    accessoriesType="Blank"
+                    hairColor={hairColor}
+                    facialHairType={facialHairType}
+                    clotheType={ropa}
+                    eyeType={eyeType}
+                    eyebrowType={opt.value}
+                    mouthType={mouthType}
+                    skinColor={skinColor}
+                  />
+                  <div className="text-xs text-center mt-1 whitespace-nowrap">{opt.label}</div>
+                </button>
+              ))}
+            </div>
+          )}
+          {openSection === 'boca' && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
+              {mouthTypeOptions.map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => setMouthType(opt.value)}
+                  className={`rounded-lg border-2 p-1 transition-all flex flex-col items-center ${mouthType === opt.value ? 'border-green-500 bg-green-50' : 'border-transparent bg-white'}`}
+                  title={opt.label}
+                >
+                  <Avataaars
+                    style={{ width: 48, height: 48 }}
+                    avatarStyle="Circle"
+                    topType={cabello}
+                    accessoriesType="Blank"
+                    hairColor={hairColor}
+                    facialHairType={facialHairType}
+                    clotheType={ropa}
+                    eyeType={eyeType}
+                    eyebrowType={eyebrowType}
+                    mouthType={opt.value}
+                    skinColor={skinColor}
+                  />
+                  <div className="text-xs text-center mt-1 whitespace-nowrap">{opt.label}</div>
+                </button>
+              ))}
+            </div>
+          )}
+          {openSection === 'facial' && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
+              {facialHairTypeOptions.map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => setFacialHairType(opt.value)}
+                  className={`rounded-lg border-2 p-1 transition-all flex flex-col items-center ${facialHairType === opt.value ? 'border-green-500 bg-green-50' : 'border-transparent bg-white'}`}
+                  title={opt.label}
+                >
+                  <Avataaars
+                    style={{ width: 48, height: 48 }}
+                    avatarStyle="Circle"
+                    topType={cabello}
+                    accessoriesType="Blank"
+                    hairColor={hairColor}
+                    facialHairType={opt.value}
+                    clotheType={ropa}
+                    eyeType={eyeType}
+                    eyebrowType={eyebrowType}
+                    mouthType={mouthType}
+                    skinColor={skinColor}
+                  />
+                  <div className="text-xs text-center mt-1 whitespace-nowrap">{opt.label}</div>
+                </button>
+              ))}
+            </div>
+          )}
+          {openSection === 'accesorio' && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
+              {accesorioOptions.map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => setAccesorio(opt.value)}
+                  className={`rounded-lg border-2 p-1 transition-all flex flex-col items-center ${accesorio === opt.value ? 'border-green-500 bg-green-50' : 'border-transparent bg-white'}`}
+                  title={opt.label}
+                >
+                  <Avataaars
+                    style={{ width: 48, height: 48 }}
+                    avatarStyle="Circle"
+                    topType={cabello}
+                    accessoriesType={opt.value}
+                    hairColor={hairColor}
+                    facialHairType={facialHairType}
+                    clotheType={ropa}
+                    eyeType={eyeType}
+                    eyebrowType={eyebrowType}
+                    mouthType={mouthType}
+                    skinColor={skinColor}
+                  />
+                  <div className="text-xs text-center mt-1 whitespace-nowrap">{opt.label}</div>
+                </button>
+              ))}
+            </div>
+          )}
+          {openSection === 'accesorio' && accesorioIncompatible && (
+            <div className="text-xs text-red-600 mt-2">Este accesorio no es compatible con el cabello seleccionado.</div>
+          )}
+          {openSection === 'piel' && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
+              {skinColorOptions.map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => setSkinColor(opt.value)}
+                  className={`rounded-full border-2 p-1 transition-all flex flex-col items-center ${skinColor === opt.value ? 'border-green-500 bg-green-50' : 'border-transparent bg-white'}`}
+                  title={opt.label}
+                >
+                  <Avataaars
+                    style={{ width: 32, height: 32 }}
+                    avatarStyle="Circle"
+                    topType={cabello}
+                    accessoriesType="Blank"
+                    hairColor={hairColor}
+                    facialHairType={facialHairType}
+                    clotheType={ropa}
+                    eyeType={eyeType}
+                    eyebrowType={eyebrowType}
+                    mouthType={mouthType}
+                    skinColor={opt.value}
+                  />
+                  <div className="text-xs text-center mt-1 whitespace-nowrap">{opt.label}</div>
+                </button>
+              ))}
+            </div>
+          )}
+          {openSection === 'ojos' && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
+              {eyeTypeOptions.map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => setEyeType(opt.value)}
+                  className={`rounded-lg border-2 p-1 transition-all flex flex-col items-center ${eyeType === opt.value ? 'border-green-500 bg-green-50' : 'border-transparent bg-white'}`}
+                  title={opt.label}
+                >
+                  <Avataaars
+                    style={{ width: 32, height: 32 }}
+                    avatarStyle="Circle"
+                    topType={cabello}
+                    accessoriesType="Blank"
+                    hairColor={hairColor}
+                    facialHairType={facialHairType}
+                    clotheType={ropa}
+                    eyeType={opt.value}
+                    eyebrowType={eyebrowType}
+                    mouthType={mouthType}
+                    skinColor={skinColor}
+                  />
+                  <div className="text-xs text-center mt-1 whitespace-nowrap">{opt.label}</div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+  if (showAvatarModal) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50">
+        <div className="bg-white rounded-xl shadow-lg p-8 min-w-[400px] relative flex flex-col items-center">
+          <button className="absolute top-4 right-4 text-2xl" onClick={() => setShowAvatarModal(false)}>×</button>
+          <h2 className="text-2xl font-bold text-green-700 text-center mb-6">Tu Avatar</h2>
+          <Avataaars
+            style={{ width: 220, height: 220 }}
+            avatarStyle="Circle"
+            topType="ShaggyMullet"
+            accessoriesType="Round"
+            hairColor="Brown"
+            facialHairType="Blank"
+            clotheType="ShirtCrewNeck"
+            clotheColor="PastelGreen"
+            eyeType={eyeType}
+            eyebrowType="Default"
+            mouthType="Smile"
+            skinColor={skinColor}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#297373] to-[#FE7F2D] flex flex-col p-0 m-0">
@@ -321,6 +853,18 @@ export default function App() {
               <circle cx="7" cy="12" r="1.5" fill="#f59e42" />
               <circle cx="17" cy="12" r="1.5" fill="#f59e42" />
               <circle cx="12" cy="17" r="1.5" fill="#f59e42" />
+            </svg>
+          </button>
+          {/* Botón de ropa (camiseta) */}
+          <button
+            onClick={() => setShowAvatarView(true)}
+            className="flex items-center justify-center w-10 h-10 rounded-full bg-white/80 hover:bg-white shadow border border-gray-200 transition ml-2"
+            title="Ver Avatar"
+          >
+            {/* SVG camiseta */}
+            <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6">
+              <path d="M16 3l3.29 2.47a1 1 0 01.29 1.36l-2.58 4.3A2 2 0 0115.17 12H8.83a2 2 0 01-1.83-1.87l-2.58-4.3a1 1 0 01.29-1.36L8 3h8z" stroke="#f59e42" strokeWidth="2" fill="#fff"/>
+              <rect x="9" y="12" width="6" height="8" rx="2" fill="#f59e42"/>
             </svg>
           </button>
         </div>
@@ -433,6 +977,68 @@ export default function App() {
         </div>,
         document.body
       )}
+      {/* Modal de avatar */}
+      {showAvatarModal && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50">
+          <div className="bg-white rounded-xl shadow-lg p-8 min-w-[400px] relative flex flex-col items-center">
+            <button className="absolute top-4 right-4 text-2xl" onClick={() => setShowAvatarModal(false)}>×</button>
+            <h2 className="text-2xl font-bold text-green-700 text-center mb-6">Tu Avatar</h2>
+            <Avataaars
+              style={{ width: 220, height: 220 }}
+              avatarStyle="Circle"
+              topType="ShaggyMullet"
+              accessoriesType="Round"
+              hairColor="Brown"
+              facialHairType="Blank"
+              clotheType="ShirtCrewNeck"
+              clotheColor="PastelGreen"
+              eyeType={eyeType}
+              eyebrowType="Default"
+              mouthType="Smile"
+              skinColor={skinColor}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+// Agregar la función getHairColorHex para mapear los valores a colores hex
+function getHairColorHex(value) {
+  switch (value) {
+    case 'Auburn': return '#964B00';
+    case 'Black': return '#000000';
+    case 'Blonde': return '#FAC205';
+    case 'BlondeGolden': return '#FAC205';
+    case 'Brown': return '#795548';
+    case 'BrownDark': return '#5D4037';
+    case 'PastelPink': return '#F06292';
+    case 'Platinum': return '#E0E0E0';
+    case 'Red': return '#D32F2F';
+    case 'SilverGray': return '#B0BEC5';
+    case 'Blue': return '#2196F3';
+    default: return '#000000'; // Color por defecto
+  }
+}
+
+function getClotheColorHex(value) {
+  switch (value) {
+    case 'Black': return '#000000';
+    case 'Blue01': return '#65C9FF';
+    case 'Blue02': return '#5199E4';
+    case 'Blue03': return '#25557C';
+    case 'Gray01': return '#E6E6E6';
+    case 'Gray02': return '#929598';
+    case 'Heather': return '#3C4F5C';
+    case 'PastelBlue': return '#B1E2FF';
+    case 'PastelGreen': return '#A7FFC4';
+    case 'PastelOrange': return '#FFDEB5';
+    case 'PastelRed': return '#FFAFB9';
+    case 'PastelYellow': return '#FFFFB1';
+    case 'Pink': return '#FF488E';
+    case 'Red': return '#FF5C5C';
+    case 'White': return '#FFFFFF';
+    default: return '#A7FFC4';
+  }
 }
