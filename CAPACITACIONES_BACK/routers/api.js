@@ -175,11 +175,14 @@ router.get('/postulantes', authMiddleware, async (req, res) => {
                pf.ModalidadID,
                m.NombreModalidad,
                pf.JornadaID,
-               j.NombreJornada
+               j.NombreJornada,
+               pf.GrupoHorarioID,
+               gh.NombreGrupo
         FROM Postulantes_En_Formacion pf
         LEFT JOIN PRI.Campanias c ON pf.CampañaID = c.CampañaID
         LEFT JOIN PRI.ModalidadesTrabajo m ON pf.ModalidadID = m.ModalidadID
         LEFT JOIN PRI.Jornada j ON pf.JornadaID = j.JornadaID
+        LEFT JOIN GruposDeHorario gh ON pf.GrupoHorarioID = gh.GrupoID
         WHERE pf.DNI_Capacitador       = @dniCap
           AND pf.CampañaID             = @camp
           AND FORMAT(pf.FechaInicio,'yyyy-MM')   = @prefijo
@@ -790,6 +793,89 @@ router.post('/postulantes/estado', async (req, res) => {
   } catch (e) {
     await tx.rollback();
     res.status(500).json({ error: "No se pudo actualizar el estado final", details: e.message });
+  }
+});
+
+// Endpoint para actualizar GrupoHorarioID según nombreGrupo
+router.post('/postulantes/horario', async (req, res) => {
+  const lista = req.body; // [{ dni, nombreGrupo }]
+  if (!Array.isArray(lista)) {
+    return res.status(400).json({ error: 'Formato inválido' });
+  }
+  const sql = require('mssql');
+  const pool = sql.globalConnection || await sql.connect(process.env.DB_CONNECTION_STRING);
+
+  const tx = new sql.Transaction(pool);
+  await tx.begin();
+  try {
+    for (const p of lista) {
+      // Buscar el GrupoID correspondiente al nombreGrupo
+      const result = await tx.request()
+        .input('nombreGrupo', sql.VarChar(255), p.nombreGrupo)
+        .query('SELECT GrupoID FROM GruposDeHorario WHERE NombreGrupo = @nombreGrupo');
+      const grupo = result.recordset[0];
+      if (!grupo) continue; // Si no existe, no actualiza
+
+      await tx.request()
+        .input('dni', sql.VarChar(20), p.dni)
+        .input('grupoID', sql.Int, grupo.GrupoID)
+        .query(`
+          UPDATE Postulantes_En_Formacion
+          SET GrupoHorarioID = @grupoID
+          WHERE DNI = @dni
+        `);
+    }
+    await tx.commit();
+    res.json({ ok: true });
+  } catch (e) {
+    await tx.rollback();
+    console.error(e);
+    res.status(500).json({ error: 'Error al actualizar GrupoHorarioID', details: e.message });
+  }
+});
+
+// Endpoint para obtener todos los grupos de horario base (solo Desc. Dom)
+router.get('/horarios-base', async (req, res) => {
+  try {
+    const pool = sql.globalConnection || await sql.connect(process.env.DB_CONNECTION_STRING);
+    const result = await pool.request().query(`
+      SELECT 
+        g.GrupoID,
+        g.NombreGrupo AS label,
+        -- Extraer Jornada y Turno del nombre del grupo
+        CASE 
+          WHEN g.NombreGrupo LIKE 'Full Time%' THEN 'Full Time'
+          WHEN g.NombreGrupo LIKE 'Part Time%' THEN 'Part Time'
+          WHEN g.NombreGrupo LIKE 'Semi Full%' THEN 'Semi Full'
+          ELSE ''
+        END AS jornada,
+        CASE 
+          WHEN g.NombreGrupo LIKE '%Mañana%' THEN 'Mañana'
+          WHEN g.NombreGrupo LIKE '%Tarde%' THEN 'Tarde'
+          ELSE ''
+        END AS turno,
+        -- Extraer Descanso
+        CASE 
+          WHEN g.NombreGrupo LIKE '%(Desc. Dom)%' THEN 'Dom'
+          WHEN g.NombreGrupo LIKE '%(Desc. Lun)%' THEN 'Lun'
+          WHEN g.NombreGrupo LIKE '%(Desc. Mar)%' THEN 'Mar'
+          WHEN g.NombreGrupo LIKE '%(Desc. Mie)%' THEN 'Mie'
+          WHEN g.NombreGrupo LIKE '%(Desc. Jue)%' THEN 'Jue'
+          WHEN g.NombreGrupo LIKE '%(Desc. Vie)%' THEN 'Vie'
+          WHEN g.NombreGrupo LIKE '%(Desc. Sab)%' THEN 'Sab'
+          ELSE ''
+        END AS descanso,
+        -- Rango horario
+        CONVERT(char(5), h.HoraEntrada, 108) + ' - ' + CONVERT(char(5), h.HoraSalida, 108) AS rango
+      FROM GruposDeHorario g
+      JOIN Horarios_Base h ON h.NombreHorario = LEFT(g.NombreGrupo, CHARINDEX(' (Desc.', g.NombreGrupo)-1)
+      WHERE g.NombreGrupo LIKE '%(Desc. Dom)'
+      ORDER BY jornada, turno, rango
+    `);
+    res.json(result.recordset);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Error al obtener horarios base', details: e.message });
   }
 });
 

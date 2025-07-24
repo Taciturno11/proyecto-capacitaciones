@@ -237,6 +237,8 @@ export default function App() {
     { value: 'White', label: 'Blanco' },
   ];
 
+  const [horariosBase, setHorariosBase] = useState([]);
+
   // Al iniciar, busca todas las capas disponibles para el capacitador
   useEffect(() => {
     if (!dniCap) return; // No hacer la llamada si no hay DNI válido
@@ -293,16 +295,23 @@ export default function App() {
       CampañaID: capaSeleccionada.CampañaID,
       mes: capaSeleccionada.fechaInicio.slice(0, 7),
       fechaInicio: capaSeleccionada.fechaInicio,
-      capaNum: capaSeleccionada.capa
+      capaNum: capaSeleccionada.capa,
+      horariosBase // <-- pasar horariosBase
     });
     post.loadLote({
       dniCap,
       CampañaID: capaSeleccionada.CampañaID,
       mes: capaSeleccionada.fechaInicio.slice(0, 7),
       fechaInicio: capaSeleccionada.fechaInicio,
-      capaNum: capaSeleccionada.capa
+      capaNum: capaSeleccionada.capa,
+      horariosBase // <-- pasar horariosBase
     });
-  }, [capaSeleccionada]);
+  }, [capaSeleccionada, horariosBase]);
+
+  // Cargar horarios base al montar la app
+  useEffect(() => {
+    api('/api/horarios-base').then(setHorariosBase).catch(() => setHorariosBase([]));
+  }, []);
 
   // Cerrar el popover al hacer clic fuera
   useEffect(() => {
@@ -929,6 +938,7 @@ export default function App() {
                   mes={capaSeleccionada?.fechaInicio?.slice(0, 7)}
                   fechaInicio={capaSeleccionada?.fechaInicio}
                   capaNum={capaSeleccionada?.capa}
+                  horariosBase={horariosBase}
                 />}
                 {vista === "eval" && <EvaluacionesTable postCtx={post} compact />}
                 {(vista === "asist" || vista === "eval") && (

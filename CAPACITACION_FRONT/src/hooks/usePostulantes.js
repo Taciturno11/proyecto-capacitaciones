@@ -30,7 +30,7 @@ export default function usePostulantes() {
   };
 
   // Cargar lote completo (postulantes, asistencias, deserciones, evaluaciones)
-  const loadLote = async ({ dniCap, CampañaID, mes, fechaInicio, capaNum }) => {
+  const loadLote = async ({ dniCap, CampañaID, mes, fechaInicio, capaNum, horariosBase }) => {
     if (!dniCap || !CampañaID || !mes || mes === 'undefined' || !fechaInicio || fechaInicio === 'undefined' || !capaNum) {
       console.warn('[usePostulantes] No se carga lote por parámetros inválidos:', { dniCap, CampañaID, mes, fechaInicio, capaNum });
       return;
@@ -53,6 +53,18 @@ export default function usePostulantes() {
       let asistencia = Array.isArray(p.asistencia) ? [...p.asistencia] : d.map(() => "");
       if (asistencia.length > d.length) asistencia = asistencia.slice(0, d.length);
       if (asistencia.length < d.length) asistencia = [...asistencia, ...Array(d.length - asistencia.length).fill("")];
+
+      // Inicializar turno y horario según el grupo guardado
+      let turno = '';
+      let horario = '';
+      if (p.NombreGrupo && Array.isArray(horariosBase)) {
+        const grupo = horariosBase.find(h => h.label === p.NombreGrupo);
+        if (grupo) {
+          turno = grupo.turno;
+          horario = grupo.label;
+        }
+      }
+
       return {
         ...p,
         numero      : p.telefono || "",
@@ -64,7 +76,9 @@ export default function usePostulantes() {
         ModalidadID: p.ModalidadID,
         NombreModalidad: p.NombreModalidad,
         JornadaID: p.JornadaID,
-        NombreJornada: p.NombreJornada
+        NombreJornada: p.NombreJornada,
+        turno,
+        horario
       };
     });
     // Asistencias previas
@@ -218,6 +232,15 @@ export default function usePostulantes() {
           fecha_inicio: params.fechaInicio
         };
       });
+    // Nuevo payload para turno y horario
+    const payloadPostulantes = tablaDatos
+      .filter(p => p.dirty)
+      .map(p => ({
+        dni: p.dni,
+        nombreGrupo: armarNombreGrupo(p)
+      }));
+    console.log('Postulantes a enviar (nombreGrupo):', payloadPostulantes);
+
     console.log('Estados finales a enviar:', payloadEstados);
 
     // LOGS DE DEPURACIÓN
@@ -225,7 +248,7 @@ export default function usePostulantes() {
     console.log("Deserciones a enviar (con CampañaID):", desToSend);
     console.log("Evaluaciones a enviar:", payloadE);
 
-    if (!payloadA.length && !desToSend.length && !payloadE.length && !payloadEstados.length) {
+    if (!payloadA.length && !desToSend.length && !payloadE.length && !payloadEstados.length && !payloadPostulantes.length) {
       alert("Nada por guardar");
       return;
     }
@@ -239,6 +262,8 @@ export default function usePostulantes() {
         { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payloadE) });
       if (payloadEstados.length) await api("/api/postulantes/estado",
         { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payloadEstados) });
+      if (payloadPostulantes.length) await api("/api/postulantes/horario",
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payloadPostulantes) });
 
       // Limpiar dirty tras guardar
       setTablaDatos(t => t.map(row => ({ ...row, dirty: false })));
@@ -259,4 +284,10 @@ export default function usePostulantes() {
     refreshOJT, downloadExcel,
     setTablaDatos // <-- AGREGADO para exponer el setter
   };
+}
+
+// Función para armar el nombre del grupo horario a partir del horario seleccionado
+function armarNombreGrupo(p) {
+  // Se asume que el select de horario guarda el nombre exacto del grupo (ej: 'Full Time Mañana2 (Desc. Dom)')
+  return p.horario || '';
 }
