@@ -6,6 +6,7 @@ import { ExclamationTriangleIcon } from '@heroicons/react/24/solid';
 import UserAvatar from './UserAvatar';
 import TiendaMarcos from './TiendaMarcos';
 import PhotoUploadModal from './PhotoUploadModal';
+import ResumenCapacitacionesJefeTable from './ResumenCapacitacionesJefeTable';
 Chart.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend);
 
 export default function DashboardCoordinadora() {
@@ -164,6 +165,11 @@ export default function DashboardCoordinadora() {
             <span className="text-lg font-semibold">{k.label}</span>
           </div>
         ))}
+      </div>
+
+      {/* Resumen de Capacitaciones Jefe */}
+      <div className="px-8">
+        <ResumenCapacitacionesJefeTable />
       </div>
 
       {/* Tabla de capacitadores */}

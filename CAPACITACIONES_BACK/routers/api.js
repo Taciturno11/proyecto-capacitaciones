@@ -62,19 +62,12 @@ function obtenerDuracion(campania) {
   
   // Intentar búsqueda directa primero (para compatibilidad)
   if (DURACION[campania]) {
-    console.log(`[DURACION] Búsqueda directa exitosa: "${campania}"`);
     return DURACION[campania];
   }
   
   // Si no encuentra, normalizar y buscar
   const campaniaNormalizada = normalizarCampania(campania);
   const resultado = DURACION[campaniaNormalizada] || { cap:5, ojt:5 };
-  
-  if (campaniaNormalizada !== campania) {
-    console.log(`[DURACION] Normalización aplicada: "${campania}" → "${campaniaNormalizada}" → ${JSON.stringify(resultado)}`);
-  } else {
-    console.log(`[DURACION] No se encontró duración para: "${campania}" → usando fallback ${JSON.stringify(resultado)}`);
-  }
   
   return resultado;
 }
@@ -129,7 +122,6 @@ router.get("/capacitadores/:dni", async (req, res) => {
 /* ───────────────────── Lotes / capas ─────────────────────── */
 router.get("/capas", async (req, res) => {
   const { dniCap, campania, mes } = req.query;      // mes = YYYY-MM
-  console.log("[GET /capas] Parámetros recibidos:", { dniCap, campania, mes });
   try {
     let query = `
       SELECT 
@@ -150,7 +142,6 @@ router.get("/capas", async (req, res) => {
     if (mes)      request.input("prefijo", sql.VarChar(7), mes);
 
     const { recordset } = await request.query(query);
-    console.log("[GET /capas] Resultado SQL:", recordset);
     res.json(recordset);
   } catch (e) { console.error(e); res.sendStatus(500); }
 });
@@ -1142,6 +1133,203 @@ router.delete("/fotos-perfil/:dni", authMiddleware, async (req, res) => {
   } catch (e) {
     console.error("Error al eliminar foto:", e);
     res.status(500).json({ error: "Error al eliminar foto de perfil" });
+  }
+});
+
+// Endpoint real para resumen de capacitaciones de la jefa con paginación
+router.get('/capacitaciones/resumen-jefe', async (req, res) => {
+  // Parámetros de paginación
+  const page = parseInt(req.query.page) || 1;
+  const pageSize = parseInt(req.query.pageSize) || 10;
+  try {
+    // 1. Traer todas las capacitaciones/lotes (usando nombres exactos)
+    const lotes = await R().query(`
+      SELECT pf.CampañaID, pf.FechaInicio, pf.DNI_Capacitador, c.NombreCampaña, m.NombreModalidad,
+             pf.DNI_Capacitador AS formadorDNI, pf.FechaInicio AS inicioCapa,
+             pf.ModalidadID, pf.CampañaID,
+             e.Nombres + ' ' + e.ApellidoPaterno + ' ' + e.ApellidoMaterno AS formador
+      FROM Postulantes_En_Formacion pf
+      LEFT JOIN PRI.Campanias c ON pf.CampañaID = c.CampañaID
+      LEFT JOIN PRI.ModalidadesTrabajo m ON pf.ModalidadID = m.ModalidadID
+      LEFT JOIN PRI.Empleados e ON pf.DNI_Capacitador = e.DNI
+      WHERE pf.FechaInicio IS NOT NULL
+      GROUP BY pf.CampañaID, pf.FechaInicio, pf.DNI_Capacitador, c.NombreCampaña, m.NombreModalidad, pf.ModalidadID, e.Nombres, e.ApellidoPaterno, e.ApellidoMaterno
+    `);
+    let rows = lotes.recordset;
+
+    // 2. Traer Q ENTRE para cada lote
+    const qEntreRows = await R().query(`SELECT CampañaID, FechaInicio, DNI_Capacitador, qEntre FROM QEntre_Jefe`);
+    const qEntreMap = {};
+    qEntreRows.recordset.forEach(q => {
+      qEntreMap[`${q.CampañaID}_${q.FechaInicio.toISOString().slice(0,10)}_${q.DNI_Capacitador}`] = q.qEntre;
+    });
+
+    // 3. Traer lista de postulantes por lote
+    const postRows = await R().query(`
+      SELECT CampañaID, FechaInicio, DNI_Capacitador, COUNT(*) AS lista
+      FROM Postulantes_En_Formacion
+      WHERE FechaInicio IS NOT NULL
+      GROUP BY CampañaID, FechaInicio, DNI_Capacitador
+    `);
+    const listaMap = {};
+    postRows.recordset.forEach(p => {
+      listaMap[`${p.CampañaID}_${p.FechaInicio.toISOString().slice(0,10)}_${p.DNI_Capacitador}`] = p.lista;
+    });
+    console.log('DEBUG: Lista de postulantes encontrados:', postRows.recordset.length);
+    console.log('DEBUG: Primeros 3 registros de lista:', postRows.recordset.slice(0, 3));
+
+    // 4. Traer asistencias por lote y día (eliminando duplicados)
+    const asisRows = await R().query(`
+      SELECT DISTINCT a.CampañaID, a.fecha_inicio, a.fecha, a.estado_asistencia, p.DNI_Capacitador, a.postulante_dni
+      FROM Asistencia_Formacion a
+      JOIN Postulantes_En_Formacion p ON a.postulante_dni = p.DNI
+      WHERE a.fecha_inicio IS NOT NULL
+    `);
+    console.log('DEBUG: Total asistencias encontradas:', asisRows.recordset.length);
+    console.log('DEBUG: Primeras 5 asistencias:', asisRows.recordset.slice(0, 5));
+    const asisMap = {};
+    asisRows.recordset.forEach(a => {
+      const key = `${a.CampañaID}_${a.fecha_inicio.toISOString().slice(0,10)}_${a.DNI_Capacitador}`;
+      if (!asisMap[key]) asisMap[key] = {};
+      if (!asisMap[key][a.fecha.toISOString().slice(0,10)]) {
+        asisMap[key][a.fecha.toISOString().slice(0,10)] = [];
+      }
+      asisMap[key][a.fecha.toISOString().slice(0,10)].push(a.estado_asistencia);
+    });
+
+    // 5. Traer bajas por lote
+    const bajasRows = await R().query(`
+      SELECT CampañaID, FechaInicio, DNI_Capacitador, COUNT(*) AS qBajas
+      FROM Postulantes_En_Formacion
+      WHERE EstadoPostulante = 'Desertó' AND FechaInicio IS NOT NULL
+      GROUP BY CampañaID, FechaInicio, DNI_Capacitador
+    `);
+    const bajasMap = {};
+    bajasRows.recordset.forEach(b => {
+      bajasMap[`${b.CampañaID}_${b.FechaInicio.toISOString().slice(0,10)}_${b.DNI_Capacitador}`] = b.qBajas;
+    });
+    console.log('DEBUG: Bajas encontradas:', bajasRows.recordset.length);
+    console.log('DEBUG: Primeros 3 registros de bajas:', bajasRows.recordset.slice(0, 3));
+
+    // 6. Armar los datos finales
+    const allRows = rows.map(lote => {
+      // Limpiar CampañaID si tiene comas
+      const campaniaId = String(lote.CampañaID).split(',')[0];
+      const key = `${campaniaId}_${lote.FechaInicio.toISOString().slice(0,10)}_${lote.DNI_Capacitador}`;
+      console.log(`DEBUG KEY: ${key}`);
+      console.log(`DEBUG listaMap keys:`, Object.keys(listaMap));
+      console.log(`DEBUG bajasMap keys:`, Object.keys(bajasMap));
+      
+      const qEntre = qEntreMap[key] || 0;
+      const esperado = qEntre * 2;
+      const lista = listaMap[key] || 0;
+      // Primer día (asistencia)
+      const primerDiaFecha = lote.FechaInicio.toISOString().slice(0,10);
+      let primerDia = 0;
+      // Contar cuántos tienen asistencia 'A' en el primer día específico
+      if (asisMap[key] && asisMap[key][primerDiaFecha]) {
+        // Contar cuántos postulantes tienen asistencia 'A' en el primer día
+        primerDia = asisMap[key][primerDiaFecha].filter(estado => estado === 'A').length;
+        console.log(`DEBUG ${lote.NombreCampaña} - Primer día: ${primerDiaFecha}, Asistencias totales: ${asisMap[key][primerDiaFecha].length}, Asistencias 'A': ${primerDia}`);
+      }
+      // % EFEC ATH
+      const porcentajeEfec = esperado > 0 ? Math.round((primerDia / esperado) * 100) : 0;
+      let riesgoAth = 'Sin riesgo';
+      if (porcentajeEfec < 60) riesgoAth = 'Riesgo alto';
+      else if (porcentajeEfec < 85) riesgoAth = 'Riesgo medio';
+      // Días (solo mock, puedes armar el array de asistencias por día si lo necesitas)
+      const asistencias = Array(31).fill(1); // Aquí deberías armar el array real de asistencias por día
+      // Activos = lista - bajas
+      const qBajas = bajasMap[key] || 0;
+      const activos = lista - qBajas;
+      const porcentajeDeser = lista > 0 ? Math.round((qBajas / lista) * 100) : 0;
+      
+      // Debug: Log para verificar los valores
+      console.log(`DEBUG ${lote.NombreCampaña}: lista=${lista}, qBajas=${qBajas}, activos=${activos}, primerDia=${primerDia}, porcentajeDeser=${porcentajeDeser}%`);
+      // Calcular fecha fin OJT basada en la duración de la campaña
+      const duracion = obtenerDuracion(lote.NombreCampaña);
+      const fechaInicio = new Date(lote.FechaInicio);
+      const fechaFinOJT = new Date(fechaInicio);
+      fechaFinOJT.setDate(fechaInicio.getDate() + duracion.cap + duracion.ojt - 1); // -1 porque el primer día cuenta
+      
+      return {
+        id: key,
+        campania: lote.NombreCampaña,
+        modalidad: lote.NombreModalidad,
+        formador: lote.formador,
+        inicioCapa: lote.FechaInicio.toISOString().slice(0,10),
+        finOjt: fechaFinOJT.toISOString().slice(0,10),
+        qEntre,
+        lista,
+        primerDia,
+        asistencias,
+        activos,
+        qBajas,
+        porcentajeDeser,
+        riesgoForm: riesgoAth // Puedes ajustar si tienes otra lógica
+      };
+    });
+
+    // Ordenar por fechaInicio descendente
+    allRows.sort((a, b) => new Date(b.inicioCapa) - new Date(a.inicioCapa));
+    // Paginación
+    const paginated = allRows.slice((page - 1) * pageSize, page * pageSize);
+    res.json({
+      data: paginated,
+      total: allRows.length,
+      page,
+      pageSize
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Error al obtener resumen de capacitaciones' });
+  }
+});
+
+// Obtener todos los Q ENTRE registrados
+router.get('/qentre-jefe', async (req, res) => {
+  try {
+    const { recordset } = await R().query(`
+      SELECT CampañaID, FechaInicio, DNI_Capacitador, qEntre
+      FROM QEntre_Jefe
+    `);
+    res.json(recordset);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Error al consultar Q ENTRE' });
+  }
+});
+
+// Guardar o actualizar Q ENTRE para una capacitación
+router.post('/qentre-jefe', async (req, res) => {
+  console.log('POST /qentre-jefe - Body recibido:', req.body);
+  const { CampañaID, FechaInicio, DNI_Capacitador, qEntre } = req.body;
+  console.log('POST /qentre-jefe - Datos extraídos:', { CampañaID, FechaInicio, DNI_Capacitador, qEntre });
+  
+  if (!CampañaID || !FechaInicio || !DNI_Capacitador || qEntre == null) {
+    console.log('POST /qentre-jefe - Error: Faltan datos requeridos');
+    return res.status(400).json({ error: 'Faltan datos requeridos', received: req.body });
+  }
+  try {
+    await R()
+      .input('CampañaID', sql.Int, CampañaID)
+      .input('FechaInicio', sql.Date, FechaInicio)
+      .input('DNI_Capacitador', sql.VarChar(20), DNI_Capacitador)
+      .input('qEntre', sql.Int, qEntre)
+      .query(`
+        MERGE QEntre_Jefe AS target
+        USING (SELECT @CampañaID AS CampañaID, @FechaInicio AS FechaInicio, @DNI_Capacitador AS DNI_Capacitador) AS source
+        ON (target.CampañaID = source.CampañaID AND target.FechaInicio = source.FechaInicio AND target.DNI_Capacitador = source.DNI_Capacitador)
+        WHEN MATCHED THEN
+          UPDATE SET qEntre = @qEntre, fechaActualizacion = GETDATE()
+        WHEN NOT MATCHED THEN
+          INSERT (CampañaID, FechaInicio, DNI_Capacitador, qEntre)
+          VALUES (@CampañaID, @FechaInicio, @DNI_Capacitador, @qEntre);
+      `);
+    res.json({ success: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Error al guardar Q ENTRE' });
   }
 });
 
