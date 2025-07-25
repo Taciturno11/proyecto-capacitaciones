@@ -15,6 +15,11 @@ export default function ResumenCapacitacionesJefeTable() {
   const [diasLeft, setDiasLeft] = React.useState(0);
   const [editIdx, setEditIdx] = React.useState(null);
   const [editValue, setEditValue] = React.useState(null);
+  
+  // Estados para filtros
+  const [filtroCampania, setFiltroCampania] = React.useState('');
+  const [filtroFormador, setFiltroFormador] = React.useState('');
+  const [filtroEstado, setFiltroEstado] = React.useState('');
   // Guardar Q ENTRE en backend
   const saveQEntre = async (rowIdx, row, value) => {
     setLoading(true);
@@ -71,14 +76,76 @@ export default function ResumenCapacitacionesJefeTable() {
     setDiasOffset(Math.min(DIAS_MAX - DIAS_VISIBLES, diasOffset + 6));
   };
 
+  // Obtener opciones únicas para los filtros
+  const campaniasUnicas = [...new Set(rows.map(row => row.campania))].sort();
+  const formadoresUnicos = [...new Set(rows.map(row => row.formador))].sort();
+  
+  // Aplicar filtros
+  const rowsFiltradas = rows.filter(row => {
+    const cumpleCampania = !filtroCampania || row.campania === filtroCampania;
+    const cumpleFormador = !filtroFormador || row.formador === filtroFormador;
+    const cumpleEstado = !filtroEstado || 
+      (filtroEstado === 'En curso' && !row.finalizado) ||
+      (filtroEstado === 'Finalizado' && row.finalizado);
+    
+    return cumpleCampania && cumpleFormador && cumpleEstado;
+  });
+  
   // Paginación real (ya viene paginado del backend)
   const totalPages = Math.ceil(total / PAGE_SIZE);
-  const paginatedRows = rows;
+  const paginatedRows = rowsFiltradas;
 
   if (loading) return <div className="p-8 text-center text-gray-500">Cargando resumen...</div>;
 
   return (
     <div className="rounded-xl shadow bg-white p-4 mt-6">
+      {/* Filtros */}
+      <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Filtro Campaña */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Campaña</label>
+          <select
+            value={filtroCampania}
+            onChange={(e) => setFiltroCampania(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">Todas las campañas</option>
+            {campaniasUnicas.map(campania => (
+              <option key={campania} value={campania}>{campania}</option>
+            ))}
+          </select>
+        </div>
+        
+        {/* Filtro Formador */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Formador</label>
+          <select
+            value={filtroFormador}
+            onChange={(e) => setFiltroFormador(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">Todos los formadores</option>
+            {formadoresUnicos.map(formador => (
+              <option key={formador} value={formador}>{formador}</option>
+            ))}
+          </select>
+        </div>
+        
+        {/* Filtro Estado */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Estado</label>
+          <select
+            value={filtroEstado}
+            onChange={(e) => setFiltroEstado(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">Todos los estados</option>
+            <option value="En curso">En curso</option>
+            <option value="Finalizado">Finalizado</option>
+          </select>
+        </div>
+      </div>
+      
       <table className="min-w-full text-xs border border-gray-200">
         <thead>
           <tr className="bg-blue-100 text-blue-900">
@@ -102,7 +169,7 @@ export default function ResumenCapacitacionesJefeTable() {
           </tr>
           <tr className="bg-blue-100 text-blue-900">
             {Array.from({length: DIAS_VISIBLES}, (_, i) => (
-              <th key={i} className="px-1 py-1 text-center">{diasOffset + i + 1}</th>
+              <th key={i} className={`px-1 py-1 text-center bg-gray-300 ${i === 0 ? 'border-l-2 border-gray-300' : ''}`}>{diasOffset + i + 1}</th>
             ))}
           </tr>
         </thead>
@@ -135,7 +202,7 @@ export default function ResumenCapacitacionesJefeTable() {
             
             const status = row.finalizado ? 'Finalizado' : 'En curso';
             return (
-              <tr key={row.id || idx} className={idx % 2 === 0 ? 'bg-blue-50' : ''}>
+              <tr key={row.id || idx} className={idx % 2 === 0 ? 'bg-blue-50' : 'bg-white'}>
                 <td className="border px-2 py-1">{row.campania}</td>
                 <td className="border px-2 py-1">{row.modalidad}</td>
                 <td className="border px-2 py-1">{row.formador}</td>
@@ -171,7 +238,11 @@ export default function ResumenCapacitacionesJefeTable() {
                 <td className={`border px-2 py-1 ${riesgoAthClass}`}>{riesgoAth}</td>
                 {/* Días visibles con scroll */}
                 {Array.from({length: DIAS_VISIBLES}, (_, i) => (
-                  <td key={i} className="border px-1 py-1 text-center">{row.asistencias && row.asistencias[diasOffset + i] ? row.asistencias[diasOffset + i] : ''}</td>
+                  <td key={i} className={`border px-1 py-1 text-center ${idx % 2 === 0 ? 'bg-gray-100' : 'bg-gray-200'} ${i === 0 ? 'border-l-2 border-gray-200' : ''}`}>
+                    <span className="text-xs font-medium text-gray-600">
+                      {row.asistencias && row.asistencias[diasOffset + i] ? row.asistencias[diasOffset + i] : ''}
+                    </span>
+                  </td>
                 ))}
                 <td className="border px-2 py-1 text-center">{row.activos}</td>
                 <td className="border px-2 py-1 text-center">{row.qBajas}</td>

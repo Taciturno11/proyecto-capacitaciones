@@ -1237,8 +1237,32 @@ router.get('/capacitaciones/resumen-jefe', async (req, res) => {
       let riesgoAth = 'Sin riesgo';
       if (porcentajeEfec < 60) riesgoAth = 'Riesgo alto';
       else if (porcentajeEfec < 85) riesgoAth = 'Riesgo medio';
-      // Días (solo mock, puedes armar el array de asistencias por día si lo necesitas)
-      const asistencias = Array(31).fill(1); // Aquí deberías armar el array real de asistencias por día
+      // Días - calcular asistencias reales por día (excluyendo domingos)
+      const asistencias = Array(31).fill(0); // Inicializar con 0
+      if (asisMap[key]) {
+        // Función para obtener siguiente fecha excluyendo domingos
+        const nextDate = (iso) => {
+          const [y,m,d] = iso.split("-").map(Number);
+          const dt = new Date(y, m-1, d);
+          do { dt.setDate(dt.getDate()+1); } while (dt.getDay()===0);
+          return dt.toISOString().slice(0,10);
+        };
+        
+        // Calcular fechas consecutivas sin domingos
+        let fechasConsecutivas = [lote.FechaInicio.toISOString().slice(0,10)];
+        for (let i = 1; i < 31; i++) {
+          fechasConsecutivas.push(nextDate(fechasConsecutivas[i-1]));
+        }
+        
+        // Para cada día consecutivo, contar cuántos tienen asistencia 'A'
+        for (let dia = 0; dia < 31; dia++) {
+          const fechaStr = fechasConsecutivas[dia];
+          if (asisMap[key][fechaStr]) {
+            // Contar cuántos tienen asistencia 'A' en este día
+            asistencias[dia] = asisMap[key][fechaStr].filter(estado => estado === 'A').length;
+          }
+        }
+      }
       // Activos = lista - bajas
       const qBajas = bajasMap[key] || 0;
       const activos = lista - qBajas;
