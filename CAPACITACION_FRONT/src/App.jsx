@@ -14,6 +14,7 @@ import UserAvatar from "./components/UserAvatar";
 import TiendaMarcos from "./components/TiendaMarcos";
 import RuletaPuntos from "./components/RuletaPuntos";
 import Avataaars from 'avataaars';
+import SelectorBar from "./components/SelectorBar";
 
 function getDniFromToken() {
   const token = localStorage.getItem('token');
@@ -238,6 +239,9 @@ export default function App() {
   ];
 
   const [horariosBase, setHorariosBase] = useState([]);
+
+  // Estado para el filtro de jornada
+  const [jornadaFiltro, setJornadaFiltro] = useState("Todos");
 
   // Al iniciar, busca todas las capas disponibles para el capacitador
   useEffect(() => {
@@ -916,6 +920,18 @@ export default function App() {
                   <option key={c.capa} value={c.capa}>{`Capa ${c.capa} — ${c.fechaInicio}`}</option>
                 ))}
               </select>
+              {/* Select de jornada */}
+              <select
+                style={{ backgroundColor: '#dbeafe' }}
+                className="px-2 py-1 text-sm rounded border focus:outline-none focus:ring"
+                value={jornadaFiltro}
+                onChange={e => setJornadaFiltro(e.target.value)}
+              >
+                <option value="Todos">Todos</option>
+                <option value="Full Time">Full Time</option>
+                <option value="Part Time">Part Time</option>
+                <option value="Semi Full">Semi Full</option>
+              </select>
             </>
           )}
         </div>
@@ -939,6 +955,7 @@ export default function App() {
                   fechaInicio={capaSeleccionada?.fechaInicio}
                   capaNum={capaSeleccionada?.capa}
                   horariosBase={horariosBase}
+                  jornadaFiltro={jornadaFiltro}
                 />}
                 {vista === "eval" && <EvaluacionesTable postCtx={post} compact />}
                 {(vista === "asist" || vista === "eval") && (

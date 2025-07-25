@@ -37,7 +37,7 @@ function PopoverPortal({ anchorRef, children, open }) {
   );
 }
 
-export default function AsistenciasTable({ postCtx, compact, dniCap, CampañaID, mes, fechaInicio, capaNum, horariosBase }) {
+export default function AsistenciasTable({ postCtx, compact, dniCap, CampañaID, mes, fechaInicio, capaNum, horariosBase, jornadaFiltro = "Todos" }) {
   const { dias, tablaDatos, setAsistencia, capCount, loadLote } = postCtx;
   const [popover, setPopover] = useState({ open: false, row: null, col: null });
   const [motivo, setMotivo] = useState("");
@@ -45,8 +45,23 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, CampañaID,
   const popoverAnchorRefs = useRef({}); // {row_col: ref}
   if (!tablaDatos.length) return null;
 
-  // Mapeo de Jornada para coincidir con los nombres de grupo
+  // Filtro de jornada SOLO para visualización de filas
   const jornadaMap = {
+    'FullTime': [1, 'FullTime'],
+    'PartTime': [3, 'PartTime'],
+    'SemiFull': [2, 'SemiFull']
+  };
+  let postulantesFiltrados = tablaDatos;
+  const jornadaKey = jornadaFiltro.replace(/\s/g, '');
+  if (jornadaFiltro && jornadaFiltro !== "Todos" && jornadaMap[jornadaKey]) {
+    const valores = jornadaMap[jornadaKey];
+    postulantesFiltrados = tablaDatos.filter(
+      p => valores.includes(p.JornadaID) || valores.includes(p.NombreJornada)
+    );
+  }
+
+  // Mapeo de Jornada para coincidir con los nombres de grupo (para los selectores)
+  const jornadaLabelMap = {
     'FullTime': 'Full Time',
     'PartTime': 'Part Time',
     'SemiFull': 'Semi Full'
@@ -54,7 +69,7 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, CampañaID,
 
   // Ahora la función está dentro del componente y accede a la prop
   function getHorariosFiltrados(modalidad, jornada, turno) {
-    const jornadaGrupo = jornadaMap[jornada] || jornada;
+    const jornadaGrupo = jornadaLabelMap[jornada] || jornada;
     return (horariosBase || [])
       .filter(h => h.jornada === jornadaGrupo && h.turno === turno && h.descanso === 'Dom');
   }
@@ -147,7 +162,7 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, CampañaID,
             {/* Nombre y DNI con fondo beige claro y texto centrado */}
             <th rowSpan={2} className={`${thBase} bg-[#f5ede6] text-[#3d3d3d] text-center font-semibold border-b border-[#e0d7ce] min-w-0 rounded-tl-xl`}>Nombre</th>
             <th rowSpan={2} className={`${thBase} bg-[#f5ede6] text-[#3d3d3d] text-center font-semibold border-b border-[#e0d7ce] min-w-0`}>DNI</th>
-            <th rowSpan={2} className={`${thBase} bg-[#f5ede6] text-[#3d3d3d] text-center font-semibold border-b border-[#e0d7ce] min-w-0`}>Horario</th>
+            <th rowSpan={2} className={`${thBase} bg-[#f5ede6] text-[#3d3d3d] text-center font-semibold border-b border-[#e0d7ce] w-[180px] min-w-[180px]`}>Horario</th>
             {/* Quitar columnas Campaña, Modalidad y Jornada */}
             {/* <th rowSpan={2} className={`${thBase} bg-[#f5ede6] text-[#3d3d3d] text-center font-semibold border-b border-[#e0d7ce] min-w-[120px]`}>Campaña</th> */}
             {/* <th rowSpan={2} className={`${thBase} bg-[#f5ede6] text-[#3d3d3d] text-center font-semibold border-b border-[#e0d7ce] min-w-[120px]`}>Modalidad</th> */}
@@ -181,7 +196,7 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, CampañaID,
           </tr>
         </thead>
         <tbody>
-          {tablaDatos.map((p, r) => {
+          {postulantesFiltrados.map((p, r) => {
             // DEBUG: log longitudes
             if (r === 0) {
               console.log('dias.length:', dias.length, 'p.asistencia.length:', p.asistencia?.length, 'dias:', dias, 'asistencia:', p.asistencia);
@@ -200,7 +215,7 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, CampañaID,
               >
                 <td className={`${tdBase} text-left min-w-0 truncate`} title={p.nombre}>{p.nombre}</td>
                 <td className={`${tdBase} text-center min-w-0`}>{p.dni}</td>
-                <td className={`${tdBase} text-center min-w-0`}>
+                <td className={`${tdBase} text-center w-[180px] min-w-[180px]`}>
                   <div className="flex flex-row items-center gap-1 whitespace-nowrap">
                     {/* Select de Turno */}
                     <select
@@ -232,7 +247,7 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, CampañaID,
                           return copy;
                         });
                       }}
-                      className="bg-white/80 border border-gray-300 rounded-lg shadow-sm px-0.5 py-0 text-[11px] h-6 min-w-[22px] focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition outline-none text-center"
+                      className="bg-white/80 border border-gray-300 rounded-lg shadow-sm px-0.5 py-0 text-[11px] h-6 w-full focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition outline-none text-center"
                     >
                       <option value="">H</option>
                       {getHorariosFiltrados(p.NombreModalidad, p.NombreJornada, p.turno).map(h => (

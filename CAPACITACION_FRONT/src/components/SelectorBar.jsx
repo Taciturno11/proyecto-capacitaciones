@@ -10,12 +10,12 @@ function isValidLoteParams({ mes, fechaInicio }) {
   return mes && mes !== "undefined" && fechaInicio && fechaInicio !== "undefined";
 }
 
-export default function SelectorBar({ capInfo, campania, onLoteCargado }) {
+export default function SelectorBar({ capInfo, campania, onLoteCargado, jornadaFiltro = "Todos", onJornadaChange }) {
   const [meses, setMeses] = useState([]);
   const [mes, setMes] = useState("");
   const [capas, setCapas] = useState([]);
   const [capa, setCapa] = useState("");
-  const [capaObj, setCapaObj] = useState(null);
+  const [jornada, setJornada] = useState(jornadaFiltro);
 
   // Cargar meses cuando hay capacitador y campaña
   useEffect(() => {
@@ -31,20 +31,18 @@ export default function SelectorBar({ capInfo, campania, onLoteCargado }) {
       });
     setCapas([]);
     setCapa("");
-    setCapaObj(null);
     // eslint-disable-next-line
   }, [capInfo, campania]);
 
   // Cargar capas cuando cambia el mes
   useEffect(() => {
-    if (!mes) { setCapas([]); setCapa(""); setCapaObj(null); return; }
+    if (!mes) { setCapas([]); setCapa(""); return; }
     api(`/api/capas?campania=${encodeURIComponent(campania)}&mes=${mes}`)
       .then(data => {
         const filtered = data.filter(c => c.fechaInicio.slice(0, 7) === mes);
         setCapas(filtered);
         if (filtered.length === 1) {
           setCapa(filtered[0].capa.toString());
-          setCapaObj(filtered[0]);
           // Solo llama si los datos son válidos
           const params = {
             dniCap: capInfo.dni,
@@ -62,7 +60,6 @@ export default function SelectorBar({ capInfo, campania, onLoteCargado }) {
         } else if (filtered.length > 1) {
           const mostRecent = getMostRecentCapa(filtered);
           setCapa(mostRecent.capa.toString());
-          setCapaObj(mostRecent);
           const params = {
             dniCap: capInfo.dni,
             campania,
@@ -78,7 +75,6 @@ export default function SelectorBar({ capInfo, campania, onLoteCargado }) {
           }
         } else {
           setCapa("");
-          setCapaObj(null);
         }
       });
     // eslint-disable-next-line
@@ -88,7 +84,6 @@ export default function SelectorBar({ capInfo, campania, onLoteCargado }) {
   useEffect(() => {
     if (!capa || !capas.length) return;
     const obj = capas.find(c => c.capa.toString() === capa);
-    setCapaObj(obj);
     if (obj && obj.fechaInicio.slice(0, 7) !== mes) {
       setMes(obj.fechaInicio.slice(0, 7));
     }
@@ -137,6 +132,22 @@ export default function SelectorBar({ capInfo, campania, onLoteCargado }) {
           ))}
         </select>
       )}
+
+      {/* Selector de Jornada */}
+      <select
+        value={jornada}
+        onChange={e => {
+          setJornada(e.target.value);
+          if (onJornadaChange) onJornadaChange(e.target.value);
+        }}
+        className="border border-gray-300 rounded-xl px-4 py-2 min-w-[8rem] shadow-md focus:outline-none focus:ring-2 focus:ring-primary-400 text-gray-900"
+        style={{ backgroundColor: '#e6f4ea' }}
+      >
+        <option value="Todos">Todos</option>
+        <option value="Full Time">Full Time</option>
+        <option value="Part Time">Part Time</option>
+        <option value="Semi Full">Semi Full</option>
+      </select>
     </div>
   );
 }
