@@ -554,14 +554,18 @@ router.get('/dashboard-coordinadora/:dni/campanias', async (req, res) => {
     const { recordset } = await R()
       .input('jefeDni', sql.VarChar(20), dniCoordinadora)
       .query(`
-        SELECT DISTINCT CampañaID
-        FROM Postulantes_En_Formacion
-        WHERE DNI_Capacitador IN (
+        SELECT DISTINCT p.CampañaID, c.NombreCampaña
+        FROM Postulantes_En_Formacion p
+        LEFT JOIN PRI.Campanias c ON p.CampañaID = c.CampañaID
+        WHERE p.DNI_Capacitador IN (
           SELECT DNI FROM PRI.Empleados WHERE CargoID = 7 AND EstadoEmpleado = 'Activo' AND JefeDNI = @jefeDni
         )
-        ORDER BY CampañaID
+        ORDER BY p.CampañaID
       `);
-    res.json(recordset.map(r => r.CampañaID));
+    res.json(recordset.map(r => ({
+      id: r.CampañaID,
+      nombre: r.NombreCampaña || `Campaña ${r.CampañaID}`
+    })));
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Error al obtener campañas' });
@@ -592,7 +596,13 @@ router.get('/dashboard-coordinadora/:dni/meses', async (req, res) => {
 // Dashboard principal para la coordinadora
 router.get('/dashboard-coordinadora/:dni', async (req, res) => {
   const dniCoordinadora = req.params.dni;
-  const { campania, mes } = req.query;
+  const { campania, mes, capa } = req.query;
+  
+  console.log('🔍 DEBUG - Dashboard coordinadora llamado con:');
+  console.log('  - campania:', campania);
+  console.log('  - mes:', mes);
+  console.log('  - capa:', capa);
+  
   try {
     // 1. Obtener todos los capacitadores bajo la coordinadora
     const capacitadoresResult = await R()
@@ -608,7 +618,37 @@ router.get('/dashboard-coordinadora/:dni', async (req, res) => {
     }
     const dnis = capacitadores.map(c => `'${c.DNI}'`).join(",");
 
-    // 2. Obtener postulantes de todos los capacitadores filtrando por campaña y mes
+    // 2. Si se especifica capa, necesitamos obtener la FechaInicio correspondiente
+    let fechaInicioCapa = null;
+    if (capa && campania) {
+      const capaResult = await R()
+        .input('jefeDni', sql.VarChar(20), dniCoordinadora)
+        .input('campania', sql.VarChar(100), campania)
+        .input('capa', sql.Int, parseInt(capa))
+        .query(`
+          SELECT FechaInicio
+          FROM (
+            SELECT 
+              pf.FechaInicio,
+              ROW_NUMBER() OVER (PARTITION BY pf.CampañaID ORDER BY pf.FechaInicio DESC) AS capa
+            FROM Postulantes_En_Formacion pf
+            WHERE pf.DNI_Capacitador IN (
+              SELECT DNI FROM PRI.Empleados WHERE CargoID = 7 AND EstadoEmpleado = 'Activo' AND JefeDNI = @jefeDni
+            ) AND pf.CampañaID = @campania
+            GROUP BY pf.CampañaID, pf.FechaInicio
+          ) AS capas
+          WHERE capa = @capa
+        `);
+      
+      if (capaResult.recordset.length > 0) {
+        fechaInicioCapa = capaResult.recordset[0].FechaInicio;
+        console.log('  - FechaInicio de la capa:', fechaInicioCapa);
+      } else {
+        console.log('  - No se encontró la capa especificada');
+      }
+    }
+
+    // 3. Obtener postulantes de todos los capacitadores filtrando por campaña y mes
     let queryPostulantes = `
       SELECT DNI, DNI_Capacitador, EstadoPostulante, CampañaID, FORMAT(FechaInicio,'yyyy-MM') AS mes
       FROM Postulantes_En_Formacion
@@ -616,13 +656,16 @@ router.get('/dashboard-coordinadora/:dni', async (req, res) => {
     `;
     if (campania) queryPostulantes += ` AND CampañaID = @campania`;
     if (mes) queryPostulantes += ` AND FORMAT(FechaInicio,'yyyy-MM') = @mes`;
+    if (fechaInicioCapa) queryPostulantes += ` AND FechaInicio = @fechaInicioCapa`;
+    
     const postulantesResult = await R()
       .input('campania', sql.VarChar(100), campania || null)
       .input('mes', sql.VarChar(7), mes || null)
+      .input('fechaInicioCapa', sql.Date, fechaInicioCapa || null)
       .query(queryPostulantes);
     const postulantes = postulantesResult.recordset;
 
-    // 3. Obtener deserciones de todos los capacitadores filtrando por campaña y mes
+    // 4. Obtener deserciones de todos los capacitadores filtrando por campaña y mes
     let queryDeserciones = `
       SELECT d.postulante_dni, p.DNI_Capacitador
       FROM Deserciones_Formacion d
@@ -631,17 +674,160 @@ router.get('/dashboard-coordinadora/:dni', async (req, res) => {
     `;
     if (campania) queryDeserciones += ` AND p.CampañaID = @campania`;
     if (mes) queryDeserciones += ` AND FORMAT(p.FechaInicio,'yyyy-MM') = @mes`;
+    if (fechaInicioCapa) queryDeserciones += ` AND p.FechaInicio = @fechaInicioCapa`;
     const desercionesResult = await R()
       .input('campania', sql.VarChar(100), campania || null)
       .input('mes', sql.VarChar(7), mes || null)
+      .input('fechaInicioCapa', sql.Date, fechaInicioCapa || null)
       .query(queryDeserciones);
     const deserciones = desercionesResult.recordset;
+
+    // 4.1. Obtener deserciones ATH1 (día 1)
+    let queryDesercionesATH1 = `
+      SELECT d.postulante_dni, p.DNI_Capacitador
+      FROM Deserciones_Formacion d
+      JOIN Postulantes_En_Formacion p ON p.DNI = d.postulante_dni
+      WHERE p.DNI_Capacitador IN (${dnis})
+        AND DATEDIFF(day, p.FechaInicio, d.fecha_desercion) = 0
+    `;
+    if (campania) queryDesercionesATH1 += ` AND p.CampañaID = @campania`;
+    if (mes) queryDesercionesATH1 += ` AND FORMAT(p.FechaInicio,'yyyy-MM') = @mes`;
+    if (fechaInicioCapa) queryDesercionesATH1 += ` AND p.FechaInicio = @fechaInicioCapa`;
+    const desercionesATH1Result = await R()
+      .input('campania', sql.VarChar(100), campania || null)
+      .input('mes', sql.VarChar(7), mes || null)
+      .input('fechaInicioCapa', sql.Date, fechaInicioCapa || null)
+      .query(queryDesercionesATH1);
+    const desercionesATH1 = desercionesATH1Result.recordset;
+
+    // 4.2. Obtener deserciones ATH2 (día 2)
+    let queryDesercionesATH2 = `
+      SELECT d.postulante_dni, p.DNI_Capacitador
+      FROM Deserciones_Formacion d
+      JOIN Postulantes_En_Formacion p ON p.DNI = d.postulante_dni
+      WHERE p.DNI_Capacitador IN (${dnis})
+        AND DATEDIFF(day, p.FechaInicio, d.fecha_desercion) = 1
+    `;
+    if (campania) queryDesercionesATH2 += ` AND p.CampañaID = @campania`;
+    if (mes) queryDesercionesATH2 += ` AND FORMAT(p.FechaInicio,'yyyy-MM') = @mes`;
+    if (fechaInicioCapa) queryDesercionesATH2 += ` AND p.FechaInicio = @fechaInicioCapa`;
+    const desercionesATH2Result = await R()
+      .input('campania', sql.VarChar(100), campania || null)
+      .input('mes', sql.VarChar(7), mes || null)
+      .input('fechaInicioCapa', sql.Date, fechaInicioCapa || null)
+      .query(queryDesercionesATH2);
+    const desercionesATH2 = desercionesATH2Result.recordset;
+
+    // 4.3. Obtener deserciones ATH Formación (día 3 en adelante)
+    let queryDesercionesATHFormacion = `
+      SELECT d.postulante_dni, p.DNI_Capacitador
+      FROM Deserciones_Formacion d
+      JOIN Postulantes_En_Formacion p ON p.DNI = d.postulante_dni
+      WHERE p.DNI_Capacitador IN (${dnis})
+        AND DATEDIFF(day, p.FechaInicio, d.fecha_desercion) >= 2
+    `;
+    if (campania) queryDesercionesATHFormacion += ` AND p.CampañaID = @campania`;
+    if (mes) queryDesercionesATHFormacion += ` AND FORMAT(p.FechaInicio,'yyyy-MM') = @mes`;
+    if (fechaInicioCapa) queryDesercionesATHFormacion += ` AND p.FechaInicio = @fechaInicioCapa`;
+    const desercionesATHFormacionResult = await R()
+      .input('campania', sql.VarChar(100), campania || null)
+      .input('mes', sql.VarChar(7), mes || null)
+      .input('fechaInicioCapa', sql.Date, fechaInicioCapa || null)
+      .query(queryDesercionesATHFormacion);
+    const desercionesATHFormacion = desercionesATHFormacionResult.recordset;
+
+    // 3.5. Obtener deserciones que no están en ninguna categoría (para debug)
+    let queryDesercionesSinCategoria = `
+      SELECT d.postulante_dni, p.DNI_Capacitador, d.fecha_desercion, p.FechaInicio,
+             DATEDIFF(day, p.FechaInicio, d.fecha_desercion) AS dias_diferencia
+      FROM Deserciones_Formacion d
+      JOIN Postulantes_En_Formacion p ON p.DNI = d.postulante_dni
+      WHERE p.DNI_Capacitador IN (${dnis})
+        AND DATEDIFF(day, p.FechaInicio, d.fecha_desercion) < 0
+    `;
+    if (campania) queryDesercionesSinCategoria += ` AND p.CampañaID = @campania`;
+    if (mes) queryDesercionesSinCategoria += ` AND FORMAT(p.FechaInicio,'yyyy-MM') = @mes`;
+    if (fechaInicioCapa) queryDesercionesSinCategoria += ` AND p.FechaInicio = @fechaInicioCapa`;
+    const desercionesSinCategoriaResult = await R()
+      .input('campania', sql.VarChar(100), campania || null)
+      .input('mes', sql.VarChar(7), mes || null)
+      .input('fechaInicioCapa', sql.Date, fechaInicioCapa || null)
+      .query(queryDesercionesSinCategoria);
+    const desercionesSinCategoria = desercionesSinCategoriaResult.recordset;
+
+    // 3.4. Obtener postulantes del día 2 con estados A+J+T+F para % Éxito
+    let queryPostulantesDia2 = `
+      SELECT DISTINCT p.DNI, p.DNI_Capacitador
+      FROM Postulantes_En_Formacion p
+      JOIN Asistencia_Formacion a ON p.DNI = a.postulante_dni
+      WHERE p.DNI_Capacitador IN (${dnis})
+        AND a.etapa = 'Capacitacion'
+        AND DATEDIFF(day, p.FechaInicio, a.fecha) = 1
+        AND a.estado_asistencia IN ('A', 'J', 'T', 'F')
+    `;
+    if (campania) queryPostulantesDia2 += ` AND p.CampañaID = @campania`;
+    if (mes) queryPostulantesDia2 += ` AND FORMAT(p.FechaInicio,'yyyy-MM') = @mes`;
+    if (fechaInicioCapa) queryPostulantesDia2 += ` AND p.FechaInicio = @fechaInicioCapa`;
+    const postulantesDia2Result = await R()
+      .input('campania', sql.VarChar(100), campania || null)
+      .input('mes', sql.VarChar(7), mes || null)
+      .input('fechaInicioCapa', sql.Date, fechaInicioCapa || null)
+      .query(queryPostulantesDia2);
+    const postulantesDia2 = postulantesDia2Result.recordset;
 
     // 4. KPIs generales
     const totalPostulantes = postulantes.length;
     const totalDeserciones = deserciones.length;
+    const totalDesercionesATH1 = desercionesATH1.length;
+    const totalDesercionesATH2 = desercionesATH2.length;
+    const totalDesercionesATHFormacion = desercionesATHFormacion.length;
     const totalContratados = postulantes.filter(p => p.EstadoPostulante === 'Contratado').length;
-    const porcentajeExito = totalPostulantes > 0 ? Math.round((totalContratados / totalPostulantes) * 100) : 0;
+    const totalPostulantesDia2 = postulantesDia2.length;
+    const porcentajeExito = totalPostulantesDia2 > 0 ? Math.round((totalContratados / totalPostulantesDia2) * 100) : 0;
+    
+    // Calcular porcentajes de deserciones
+    const porcentajeDesercionesATH1 = totalPostulantes > 0 ? Math.round((totalDesercionesATH1 / totalPostulantes) * 100) : 0;
+    const porcentajeDesercionesATH2 = totalPostulantes > 0 ? Math.round((totalDesercionesATH2 / totalPostulantes) * 100) : 0;
+    const porcentajeDesercionesATHFormacion = totalPostulantes > 0 ? Math.round((totalDesercionesATHFormacion / totalPostulantes) * 100) : 0;
+
+    // Calcular deserciones totales como suma de las específicas
+    const totalDesercionesCalculado = totalDesercionesATH1 + totalDesercionesATH2 + totalDesercionesATHFormacion;
+
+    // Debug logs
+    console.log('=== DEBUG % ÉXITO ===');
+    console.log('Total postulantes:', totalPostulantes);
+    console.log('Total contratados:', totalContratados);
+    console.log('Total postulantes día 2:', totalPostulantesDia2);
+    console.log('Cálculo:', `${totalContratados} / ${totalPostulantesDia2} × 100 = ${porcentajeExito}%`);
+    console.log('Postulantes día 2:', postulantesDia2.map(p => p.DNI));
+    console.log('=====================');
+    
+    // Debug logs para deserciones
+    console.log('=== DEBUG DESERCIONES ===');
+    console.log('Total deserciones:', totalDeserciones);
+    console.log('Deserciones ATH1:', totalDesercionesATH1);
+    console.log('Deserciones ATH2:', totalDesercionesATH2);
+    console.log('Deserciones Formación:', totalDesercionesATHFormacion);
+    console.log('Suma específicas:', totalDesercionesCalculado);
+    console.log('Diferencia:', totalDeserciones - totalDesercionesCalculado);
+    
+    // Detalles de cada tipo de deserción
+    console.log('DNIs ATH1:', desercionesATH1.map(d => d.postulante_dni));
+    console.log('DNIs ATH2:', desercionesATH2.map(d => d.postulante_dni));
+    console.log('DNIs Formación:', desercionesATHFormacion.map(d => d.postulante_dni));
+    
+    // Verificar deserciones totales
+    console.log('DNIs Deserciones totales:', deserciones.map(d => d.postulante_dni));
+    
+    // Verificar deserciones sin categoría
+    console.log('Deserciones sin categoría (DATEDIFF < 0):', desercionesSinCategoria.length);
+    console.log('Detalles deserciones sin categoría:', desercionesSinCategoria.map(d => ({
+      dni: d.postulante_dni,
+      fechaDesercion: d.fecha_desercion,
+      fechaInicio: d.FechaInicio,
+      diasDiferencia: d.dias_diferencia
+    })));
+    console.log('=====================');
 
     // 5. Métricas por capacitador
     const tablaCapacitadores = capacitadores.map(cap => {
@@ -650,11 +836,20 @@ router.get('/dashboard-coordinadora/:dni', async (req, res) => {
       const desercionesCount = deserciones.filter(d => d.DNI_Capacitador === cap.DNI).length;
       const contratadosCount = posts.filter(p => p.EstadoPostulante === 'Contratado').length;
       const porcentaje = postulantesCount > 0 ? Math.round((contratadosCount / postulantesCount) * 100) : 0;
+      
+      // Deserciones específicas por capacitador
+      const desercionesATH1Count = desercionesATH1.filter(d => d.DNI_Capacitador === cap.DNI).length;
+      const desercionesATH2Count = desercionesATH2.filter(d => d.DNI_Capacitador === cap.DNI).length;
+      const desercionesATHFormacionCount = desercionesATHFormacion.filter(d => d.DNI_Capacitador === cap.DNI).length;
+      
       return {
         dni: cap.DNI,
         nombreCompleto: cap.nombreCompleto,
         postulantes: postulantesCount,
         deserciones: desercionesCount,
+        desercionesATH1: desercionesATH1Count,
+        desercionesATH2: desercionesATH2Count,
+        desercionesATHFormacion: desercionesATHFormacionCount,
         contratados: contratadosCount,
         porcentajeExito: porcentaje
       };
@@ -663,7 +858,14 @@ router.get('/dashboard-coordinadora/:dni', async (req, res) => {
     res.json({
       totales: {
         postulantes: totalPostulantes,
-        deserciones: totalDeserciones,
+        postulantesDia2: totalPostulantesDia2,
+        deserciones: totalDesercionesCalculado,
+        desercionesATH1: totalDesercionesATH1,
+        porcentajeDesercionesATH1: porcentajeDesercionesATH1,
+        desercionesATH2: totalDesercionesATH2,
+        porcentajeDesercionesATH2: porcentajeDesercionesATH2,
+        desercionesATHFormacion: totalDesercionesATHFormacion,
+        porcentajeDesercionesATHFormacion: porcentajeDesercionesATHFormacion,
         contratados: totalContratados,
         porcentajeExito
       },
@@ -1180,16 +1382,17 @@ router.get('/capacitaciones/resumen-jefe', async (req, res) => {
 
     // 4. Traer asistencias por lote y día (eliminando duplicados)
     const asisRows = await R().query(`
-      SELECT DISTINCT a.CampañaID, a.fecha_inicio, a.fecha, a.estado_asistencia, p.DNI_Capacitador, a.postulante_dni
+      SELECT DISTINCT p.CampañaID, p.FechaInicio, a.fecha, a.estado_asistencia, p.DNI_Capacitador, a.postulante_dni
       FROM Asistencia_Formacion a
-      JOIN Postulantes_En_Formacion p ON a.postulante_dni = p.DNI
-      WHERE a.fecha_inicio IS NOT NULL
+      JOIN Postulantes_En_Formacion p ON a.postulante_dni = p.DNI 
+        AND a.fecha_inicio = p.FechaInicio
+      WHERE p.FechaInicio IS NOT NULL
     `);
     console.log('DEBUG: Total asistencias encontradas:', asisRows.recordset.length);
     console.log('DEBUG: Primeras 5 asistencias:', asisRows.recordset.slice(0, 5));
     const asisMap = {};
     asisRows.recordset.forEach(a => {
-      const key = `${a.CampañaID}_${a.fecha_inicio.toISOString().slice(0,10)}_${a.DNI_Capacitador}`;
+      const key = `${a.CampañaID}_${a.FechaInicio.toISOString().slice(0,10)}_${a.DNI_Capacitador}`;
       if (!asisMap[key]) asisMap[key] = {};
       if (!asisMap[key][a.fecha.toISOString().slice(0,10)]) {
         asisMap[key][a.fecha.toISOString().slice(0,10)] = [];
@@ -1212,7 +1415,7 @@ router.get('/capacitaciones/resumen-jefe', async (req, res) => {
     console.log('DEBUG: Primeros 3 registros de bajas:', bajasRows.recordset.slice(0, 3));
 
     // 6. Armar los datos finales
-    const allRows = rows.map(lote => {
+    let allRows = rows.map(lote => {
       // Limpiar CampañaID si tiene comas
       const campaniaId = String(lote.CampañaID).split(',')[0];
       const key = `${campaniaId}_${lote.FechaInicio.toISOString().slice(0,10)}_${lote.DNI_Capacitador}`;
@@ -1262,6 +1465,11 @@ router.get('/capacitaciones/resumen-jefe', async (req, res) => {
             asistencias[dia] = asisMap[key][fechaStr].filter(estado => estado === 'A').length;
           }
         }
+        
+        // Debug: Mostrar las asistencias encontradas para este lote
+        console.log(`DEBUG ${lote.NombreCampaña} - Key: ${key}`);
+        console.log(`DEBUG ${lote.NombreCampaña} - Fechas con asistencias:`, Object.keys(asisMap[key] || {}));
+        console.log(`DEBUG ${lote.NombreCampaña} - Primeros 7 días de asistencias:`, asistencias.slice(0, 7));
       }
       // Activos = lista - bajas
       const qBajas = bajasMap[key] || 0;
@@ -1354,6 +1562,61 @@ router.post('/qentre-jefe', async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Error al guardar Q ENTRE' });
+  }
+});
+
+// Capas disponibles para la coordinadora
+router.get('/dashboard-coordinadora/:dni/capas', async (req, res) => {
+  const dniCoordinadora = req.params.dni;
+  const { campania } = req.query;
+  
+  console.log('🔍 DEBUG - Endpoint capas llamado con:');
+  console.log('  - dniCoordinadora:', dniCoordinadora);
+  console.log('  - campania recibida:', campania);
+  console.log('  - tipo de campania:', typeof campania);
+  
+  try {
+    let query = `
+      SELECT DISTINCT 
+        pf.CampañaID,
+        c.NombreCampaña,
+        pf.FechaInicio,
+        ROW_NUMBER() OVER (PARTITION BY pf.CampañaID ORDER BY pf.FechaInicio DESC) AS capa
+      FROM Postulantes_En_Formacion pf
+      LEFT JOIN PRI.Campanias c ON pf.CampañaID = c.CampañaID
+      WHERE pf.DNI_Capacitador IN (
+        SELECT DNI FROM PRI.Empleados WHERE CargoID = 7 AND EstadoEmpleado = 'Activo' AND JefeDNI = @jefeDni
+      )
+    `;
+    
+    if (campania) {
+      query += ` AND pf.CampañaID = @campania`;
+      console.log('  - Filtro de campaña aplicado:', campania);
+    } else {
+      console.log('  - No se aplicó filtro de campaña');
+    }
+    
+    query += ` GROUP BY pf.CampañaID, c.NombreCampaña, pf.FechaInicio ORDER BY pf.CampañaID, pf.FechaInicio DESC`;
+    
+    console.log('  - Query final:', query);
+    
+    const { recordset } = await R()
+      .input('jefeDni', sql.VarChar(20), dniCoordinadora)
+      .input('campania', sql.VarChar(100), campania || null)
+      .query(query);
+    
+    console.log('  - Resultados obtenidos:', recordset.length, 'registros');
+    console.log('  - Primeros 3 registros:', recordset.slice(0, 3));
+    
+    res.json(recordset.map(r => ({
+      capa: r.capa,
+      fechaInicio: r.FechaInicio.toISOString().slice(0, 10),
+      campaniaId: r.CampañaID,
+      campaniaNombre: r.NombreCampaña || `Campaña ${r.CampañaID}`
+    })));
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Error al obtener capas', details: e.message });
   }
 });
 

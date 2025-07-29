@@ -2,12 +2,13 @@ import React, { useEffect, useState } from "react";
 import { api } from "../utils/api";
 import { Bar, Pie } from "react-chartjs-2";
 import { Chart, CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend } from "chart.js";
+import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/solid';
 import UserAvatar from './UserAvatar';
 import TiendaMarcos from './TiendaMarcos';
 import PhotoUploadModal from './PhotoUploadModal';
 import ResumenCapacitacionesJefeTable from './ResumenCapacitacionesJefeTable';
-Chart.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend);
+Chart.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend, ChartDataLabels);
 
 export default function DashboardCoordinadora() {
   const [data, setData] = useState(null);
@@ -20,6 +21,12 @@ export default function DashboardCoordinadora() {
   const [marcoActual, setMarcoActual] = React.useState(localStorage.getItem('marco') || 'marco1.png');
   const [marcoPreview, setMarcoPreview] = React.useState(null);
   const [showPhotoModal, setShowPhotoModal] = React.useState(false);
+  
+  // Estados para filtros de gráficos
+  const [filtroGraficosCampania, setFiltroGraficosCampania] = useState("");
+  const [filtroGraficosCapa, setFiltroGraficosCapa] = useState("");
+  const [capas, setCapas] = useState([]);
+  
   const nombres = localStorage.getItem('nombres') || '';
   const apellidoPaterno = localStorage.getItem('apellidoPaterno') || '';
   const apellidoMaterno = localStorage.getItem('apellidoMaterno') || '';
@@ -31,6 +38,35 @@ export default function DashboardCoordinadora() {
     api(`/api/dashboard-coordinadora/${dni}/meses`).then(setMeses);
   }, []);
 
+  // Cargar capas cuando cambia la campaña en filtros de gráficos
+  useEffect(() => {
+    console.log('🔄 useEffect capas ejecutado');
+    console.log('  - filtroGraficosCampania:', filtroGraficosCampania);
+    console.log('  - tipo de filtroGraficosCampania:', typeof filtroGraficosCampania);
+    
+    if (!filtroGraficosCampania) {
+      console.log('  - No hay campaña seleccionada, limpiando capas');
+      setCapas([]);
+      setFiltroGraficosCapa("");
+      return;
+    }
+    
+    const dni = localStorage.getItem("dni") || JSON.parse(atob(localStorage.getItem("token").split('.')[1])).dni;
+    console.log('  - DNI obtenido:', dni);
+    console.log('  - URL a llamar:', `/api/dashboard-coordinadora/${dni}/capas?campania=${encodeURIComponent(filtroGraficosCampania)}`);
+    
+    api(`/api/dashboard-coordinadora/${dni}/capas?campania=${encodeURIComponent(filtroGraficosCampania)}`)
+      .then(data => {
+        console.log('✅ Capas cargadas exitosamente:', data);
+        setCapas(data);
+        setFiltroGraficosCapa("");
+      })
+      .catch(error => {
+        console.error('❌ Error cargando capas:', error);
+        setCapas([]);
+      });
+  }, [filtroGraficosCampania]);
+
   useEffect(() => {
     const dni = localStorage.getItem("dni") || JSON.parse(atob(localStorage.getItem("token").split('.')[1])).dni;
     setLoading(true);
@@ -40,6 +76,48 @@ export default function DashboardCoordinadora() {
     });
   }, [campania, mes]);
 
+  // Función para obtener datos filtrados para gráficos
+  const obtenerDatosGraficos = async () => {
+    if (!filtroGraficosCampania && !filtroGraficosCapa) {
+      return data; // Usar datos principales si no hay filtros
+    }
+    
+    const dni = localStorage.getItem("dni") || JSON.parse(atob(localStorage.getItem("token").split('.')[1])).dni;
+    let url = `/api/dashboard-coordinadora/${dni}`;
+    const params = [];
+    
+    if (filtroGraficosCampania) {
+      params.push(`campania=${encodeURIComponent(filtroGraficosCampania)}`);
+    }
+    if (filtroGraficosCapa) {
+      params.push(`capa=${encodeURIComponent(filtroGraficosCapa)}`);
+    }
+    
+    if (params.length > 0) {
+      url += `?${params.join('&')}`;
+    }
+    
+    try {
+      const datosFiltrados = await api(url);
+      return datosFiltrados;
+    } catch (error) {
+      console.error('Error obteniendo datos filtrados:', error);
+      return data; // Fallback a datos principales
+    }
+  };
+
+  // Estado para datos de gráficos
+  const [datosGraficos, setDatosGraficos] = useState(null);
+
+  // Actualizar datos de gráficos cuando cambian los filtros
+  useEffect(() => {
+    if (!data) return;
+    
+    obtenerDatosGraficos().then(datos => {
+      setDatosGraficos(datos);
+    });
+  }, [filtroGraficosCampania, filtroGraficosCapa, data]);
+
   if (loading || !data) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#297373] to-[#FE7F2D]">
@@ -48,11 +126,15 @@ export default function DashboardCoordinadora() {
     );
   }
 
-  const { totales, capacitadores } = data;
+  const datosParaGraficos = datosGraficos || data;
+  const { totales, capacitadores } = datosParaGraficos;
   const kpi = [
     { label: "Capacitadores activos", value: capacitadores.length, color: "bg-blue-100 text-blue-800" },
     { label: "Postulantes totales", value: totales.postulantes, color: "bg-emerald-100 text-emerald-800" },
     { label: "Deserciones", value: totales.deserciones, color: "bg-rose-100 text-rose-800" },
+    { label: "Deserciones ATH1", value: `${totales.desercionesATH1} (${totales.porcentajeDesercionesATH1}%)`, color: "bg-orange-100 text-orange-800" },
+    { label: "Deserciones ATH2", value: `${totales.desercionesATH2} (${totales.porcentajeDesercionesATH2}%)`, color: "bg-red-100 text-red-800" },
+    { label: "Deserciones Formación", value: `${totales.desercionesATHFormacion} (${totales.porcentajeDesercionesATHFormacion}%)`, color: "bg-purple-100 text-purple-800" },
     { label: "% Éxito", value: totales.porcentajeExito + '%', color: "bg-yellow-100 text-yellow-800" },
   ];
 
@@ -71,9 +153,19 @@ export default function DashboardCoordinadora() {
         backgroundColor: "#60a5fa",
       },
       {
-        label: "Deserciones",
-        data: capacitadores.map(c => c.deserciones),
-        backgroundColor: "#fca5a5",
+        label: "Deserciones ATH1",
+        data: capacitadores.map(c => c.desercionesATH1 || 0),
+        backgroundColor: "#f97316", // naranja
+      },
+      {
+        label: "Deserciones ATH2",
+        data: capacitadores.map(c => c.desercionesATH2 || 0),
+        backgroundColor: "#ef4444", // rojo
+      },
+      {
+        label: "Deserciones Formación",
+        data: capacitadores.map(c => c.desercionesATHFormacion || 0),
+        backgroundColor: "#a855f7", // púrpura
       },
       {
         label: "Contratados",
@@ -84,15 +176,17 @@ export default function DashboardCoordinadora() {
   };
 
   const pieData = {
-    labels: ["Contratados", "Desertó", "Otros"],
+    labels: ["Contratados", "Deserciones ATH1", "Deserciones ATH2", "Deserciones Formación", "Otros"],
     datasets: [
       {
         data: [
           totales.contratados,
-          totales.deserciones,
-          totales.postulantes - totales.contratados - totales.deserciones,
+          totales.desercionesATH1,
+          totales.desercionesATH2,
+          totales.desercionesATHFormacion,
+          totales.postulantes - totales.contratados - totales.desercionesATH1 - totales.desercionesATH2 - totales.desercionesATHFormacion,
         ],
-        backgroundColor: ["#6ee7b7", "#fca5a5", "#fcd34d"],
+        backgroundColor: ["#6ee7b7", "#f97316", "#ef4444", "#a855f7", "#fcd34d"],
       },
     ],
   };
@@ -145,7 +239,11 @@ export default function DashboardCoordinadora() {
           onChange={e => setCampania(e.target.value)}
         >
           <option value="">Todas las campañas</option>
-          {campanias.map(c => <option key={c} value={c}>{c}</option>)}
+          {campanias.map(c => (
+            <option key={c.id} value={c.id}>
+              {c.nombre}
+            </option>
+          ))}
         </select>
         <select
           className="px-4 py-2 rounded-xl border border-blue-200 bg-white/80 text-blue-900 shadow-md focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
@@ -158,11 +256,11 @@ export default function DashboardCoordinadora() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 px-8 mb-8">
+      <div className="grid grid-cols-7 gap-4 px-8 mb-8">
         {kpi.map((k, i) => (
-          <div key={i} className={`rounded-2xl p-6 shadow-lg flex flex-col items-center ${k.color}`}>
-            <span className="text-3xl font-bold mb-2">{k.value}</span>
-            <span className="text-lg font-semibold">{k.label}</span>
+          <div key={i} className={`rounded-2xl p-4 shadow-lg flex flex-col items-center ${k.color}`}>
+            <span className="text-2xl font-bold mb-1">{k.value}</span>
+            <span className="text-sm font-semibold text-center">{k.label}</span>
           </div>
         ))}
       </div>
@@ -215,19 +313,129 @@ export default function DashboardCoordinadora() {
 
       {/* Gráficos */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 px-8 mt-10 mb-8">
+        {/* Filtros para gráficos */}
+        <div className="md:col-span-2 bg-white/80 rounded-2xl shadow-xl p-4 mb-4">
+          <div className="flex flex-wrap items-center gap-4">
+            <span className="text-lg font-bold text-[#297373]">Filtros para gráficos:</span>
+            <select
+              className="px-4 py-2 rounded-xl border border-blue-200 bg-white/80 text-blue-900 shadow-md focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
+              value={filtroGraficosCampania}
+              onChange={e => {
+                console.log('Campaña seleccionada:', e.target.value); // Debug log
+                setFiltroGraficosCampania(e.target.value);
+              }}
+            >
+              <option value="">Todas las campañas</option>
+              {campanias.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.nombre}
+                </option>
+              ))}
+            </select>
+            <select
+              className="px-4 py-2 rounded-xl border border-blue-200 bg-white/80 text-blue-900 shadow-md focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
+              value={filtroGraficosCapa}
+              onChange={e => setFiltroGraficosCapa(e.target.value)}
+              disabled={!filtroGraficosCampania}
+            >
+              <option value="">Todas las capas</option>
+              {(() => {
+                console.log('🎯 Renderizando capas:', capas.length, 'opciones');
+                return capas.map(c => (
+                  <option key={c.capa} value={c.capa}>
+                    Capa {c.capa} — {c.fechaInicio}
+                  </option>
+                ));
+              })()}
+            </select>
+            <button
+              onClick={() => {
+                setFiltroGraficosCampania("");
+                setFiltroGraficosCapa("");
+              }}
+              className="px-4 py-2 rounded-xl bg-red-100 text-red-700 hover:bg-red-200 transition shadow-md"
+            >
+              Limpiar filtros
+            </button>
+          </div>
+        </div>
+        
         <div className="bg-white/80 rounded-2xl shadow-xl p-6 flex flex-col items-center justify-center min-h-[320px]">
-          <span className="text-lg font-bold text-[#297373] mb-2">Postulantes, Deserciones y Contratados por Capacitador</span>
+          <span className="text-lg font-bold text-[#297373] mb-2">Postulantes, Deserciones por Tipo y Contratados por Capacitador</span>
           <div className="w-full flex justify-center">
             <div style={{ maxWidth: 500, maxHeight: 350, width: '100%' }}>
-              <Bar data={barData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } } }} height={350} />
+              <Bar 
+                data={barData} 
+                options={{ 
+                  responsive: true, 
+                  maintainAspectRatio: false, 
+                  plugins: { 
+                    legend: { position: 'top' },
+                    tooltip: {
+                      callbacks: {
+                        label: function(context) {
+                          return context.dataset.label + ': ' + context.parsed.y;
+                        }
+                      }
+                    },
+                    datalabels: {
+                      anchor: 'end',
+                      align: 'top',
+                      offset: 4,
+                      color: '#333',
+                      font: {
+                        weight: 'bold',
+                        size: 11
+                      },
+                      formatter: function(value) {
+                        return value > 0 ? value : '';
+                      }
+                    }
+                  },
+                  scales: {
+                    y: {
+                      beginAtZero: true,
+                      ticks: {
+                        stepSize: 5,
+                        callback: function(value) {
+                          return value;
+                        }
+                      }
+                    }
+                  }
+                }} 
+                height={350} 
+              />
             </div>
           </div>
         </div>
         <div className="bg-white/80 rounded-2xl shadow-xl p-6 flex flex-col items-center justify-center min-h-[320px]">
-          <span className="text-lg font-bold text-[#297373] mb-2">Distribución de Estados Finales</span>
+          <span className="text-lg font-bold text-[#297373] mb-2">Distribución de Estados Finales y Deserciones por Tipo</span>
           <div className="flex justify-center w-full">
             <div style={{ maxWidth: 350, maxHeight: 350, width: '100%' }}>
-              <Pie data={pieData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }} height={350} />
+              <Pie 
+                data={pieData} 
+                options={{ 
+                  responsive: true, 
+                  maintainAspectRatio: false, 
+                  plugins: { 
+                    legend: { position: 'bottom' },
+                    datalabels: {
+                      color: '#000000',
+                      font: {
+                        weight: 'bold',
+                        size: 14
+                      },
+                      formatter: function(value) {
+                        return value > 0 ? value : '';
+                      },
+                      textAlign: 'center',
+                      textBaseline: 'middle'
+                    }
+                  } 
+                }} 
+                height={350} 
+              />
             </div>
           </div>
         </div>
