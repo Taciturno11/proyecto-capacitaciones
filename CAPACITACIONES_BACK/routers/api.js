@@ -193,6 +193,7 @@ router.get('/postulantes', authMiddleware, async (req, res) => {
         JOIN Postulantes_En_Formacion p ON p.DNI = a.postulante_dni
         WHERE p.DNI_Capacitador       = @dniCap
           AND p.CampañaID             = @camp
+          AND a.CampañaID             = @camp
           AND FORMAT(a.fecha,'yyyy-MM')       = @prefijo
           AND FORMAT(p.FechaInicio,'yyyy-MM-dd') = @fechaIni
       `);
@@ -236,11 +237,13 @@ router.get('/deserciones', authMiddleware, async (req, res) => {
         JOIN Postulantes_En_Formacion p ON p.DNI = d.postulante_dni
           AND p.CampañaID = @camp
           AND CONVERT(varchar, p.FechaInicio, 23) = CONVERT(varchar, d.fecha_inicio, 23)
+          AND d.CampañaID = @camp
         LEFT JOIN PRI.Campanias c ON d.CampañaID = c.CampañaID
         WHERE p.DNI_Capacitador = @dniCap
           AND p.CampañaID = @camp
           AND FORMAT(p.FechaInicio,'yyyy-MM') = @prefijo
           AND d.capa_numero = @capa
+          AND d.CampañaID = @camp
           AND CONVERT(varchar, p.FechaInicio, 23) = CONVERT(varchar, d.fecha_inicio, 23)
         ORDER BY d.fecha_desercion
       `);
@@ -267,30 +270,16 @@ router.post('/deserciones/bulk', authMiddleware, async (req, res) => {
     // Obtener todas las deserciones actuales para esos postulantes/capas
     const { recordset: desercionesActuales } = await tx.request()
       .query(`
-        SELECT postulante_dni, capa_numero
+        SELECT postulante_dni, capa_numero, CampañaID, fecha_inicio
         FROM Deserciones_Formacion
         WHERE postulante_dni IN (${dniList.map(d => `'${d}'`).join(',')})
           AND capa_numero IN (${capaList.join(',')})
       `);
 
-    // Calcular cuáles deben eliminarse
-    const desercionesAEliminar = desercionesActuales.filter(d =>
-      !req.body.some(r => r.postulante_dni === d.postulante_dni && r.capa_numero === d.capa_numero)
-    );
-
-    // Eliminar de la BD y poner FechaCese en NULL
-    for (const d of desercionesAEliminar) {
-      await tx.request()
-        .input("dni", sql.VarChar(20), d.postulante_dni)
-        .input("capa", sql.Int, d.capa_numero)
-        .query(`
-          DELETE FROM Deserciones_Formacion
-          WHERE postulante_dni = @dni AND capa_numero = @capa;
-          UPDATE Postulantes_En_Formacion
-          SET FechaCese = NULL
-          WHERE DNI = @dni;
-        `);
-    }
+    // NO eliminar deserciones automáticamente al registrar nuevas
+    // Solo se eliminarán cuando se cambie el estado de asistencia
+    console.log('Deserciones actuales encontradas:', desercionesActuales.length);
+    console.log('No se eliminarán deserciones automáticamente para permitir múltiples deserciones');
 
     for (const r of req.body) {
       console.log("Procesando deserción:", {
@@ -314,14 +303,14 @@ router.post('/deserciones/bulk', authMiddleware, async (req, res) => {
         .input("CampañaID", sql.Int,         r.CampañaID)
         .input("fechaInicio", sql.Date,       r.fecha_inicio)
         .query(`
-MERGE Deserciones_Formacion AS T
-USING (SELECT @dni AS dni, @capa AS capa, @CampañaID AS CampañaID, @fechaInicio AS fechaInicio) AS S
-  ON T.postulante_dni = S.dni AND T.capa_numero = S.capa AND T.CampañaID = S.CampañaID AND T.fecha_inicio = S.fechaInicio
-WHEN MATCHED THEN
-  UPDATE SET fecha_desercion = @fechaDes, motivo = @mot
-WHEN NOT MATCHED THEN
-  INSERT (postulante_dni,capa_numero,fecha_desercion,motivo,CampañaID,fecha_inicio)
-  VALUES (@dni,@capa,@fechaDes,@mot,@CampañaID,@fechaInicio);
+          MERGE Deserciones_Formacion AS T
+          USING (SELECT @dni AS dni, @capa AS capa, @CampañaID AS CampañaID, @fechaInicio AS fechaInicio, @fechaDes AS fechaDes) AS S
+            ON T.postulante_dni = S.dni AND T.capa_numero = S.capa AND T.CampañaID = S.CampañaID AND T.fecha_inicio = S.fechaInicio AND T.fecha_desercion = S.fechaDes
+          WHEN MATCHED THEN
+            UPDATE SET motivo = @mot
+          WHEN NOT MATCHED THEN
+            INSERT (postulante_dni, capa_numero, fecha_desercion, motivo, CampañaID, fecha_inicio)
+            VALUES (@dni, @capa, @fechaDes, @mot, @CampañaID, @fechaInicio);
         `);
       // Eliminar cualquier asistencia previa para ese día y capa
       await tx.request()
@@ -368,10 +357,12 @@ WHEN NOT MATCHED THEN
       await tx.request()
         .input("dni", sql.VarChar(20), r.postulante_dni)
         .input("fechaCese", sql.Date, r.fecha_desercion)
+        .input("CampañaID", sql.Int, r.CampañaID)
+        .input("fechaInicio", sql.Date, r.fecha_inicio)
         .query(`
           UPDATE Postulantes_En_Formacion
           SET FechaCese = @fechaCese
-          WHERE DNI = @dni
+          WHERE DNI = @dni AND CampañaID = @CampañaID AND FechaInicio = @fechaInicio
         `);
     }
     await tx.commit();
@@ -475,49 +466,132 @@ router.post('/asistencia/bulk', authMiddleware, async (req, res) => {
 
       // Si el nuevo estado NO es 'D', eliminar deserción y poner FechaCese en NULL si existe
       if (r.estado_asistencia !== 'D') {
-        let capa_numero = r.capa_numero;
-        if (typeof capa_numero === 'undefined') {
-          // Buscar la capa por la fecha de inicio del postulante
-          const capaRes = await tx.request()
+        console.log(`=== ELIMINANDO DESERCIÓN ===`);
+        console.log(`DNI: ${r.postulante_dni}`);
+        console.log(`CampañaID: ${r.CampañaID}`);
+        console.log(`fecha_inicio: ${r.fecha_inicio}`);
+        console.log(`estado_asistencia: ${r.estado_asistencia}`);
+        
+        // Si CampañaID es undefined, intentar obtenerlo de la tabla Postulantes_En_Formacion
+        let campaniaID = r.CampañaID;
+        if (!campaniaID) {
+          console.log(`CampañaID es undefined, buscando en Postulantes_En_Formacion...`);
+          const campRes = await tx.request()
             .input('dni', sql.VarChar(20), r.postulante_dni)
-            .input('fecha', sql.Date, r.fecha)
+            .input('fechaInicio', sql.Date, r.fecha_inicio)
             .query(`
-              SELECT capa_numero FROM Deserciones_Formacion
+              SELECT CampañaID FROM Postulantes_En_Formacion 
+              WHERE DNI = @dni AND FechaInicio = @fechaInicio
+            `);
+          campaniaID = campRes.recordset[0]?.CampañaID;
+          console.log(`CampañaID encontrado: ${campaniaID}`);
+        }
+        
+        if (campaniaID) {
+          console.log(`=== EJECUTANDO ELIMINACIÓN ===`);
+          console.log(`DNI: ${r.postulante_dni}`);
+          console.log(`CampañaID: ${campaniaID}`);
+          console.log(`fecha_inicio: ${r.fecha_inicio}`);
+          
+          // Primero verificar qué deserciones existen
+          const checkDeserciones = await tx.request()
+            .input('dni', sql.VarChar(20), r.postulante_dni)
+            .input('CampañaID', sql.Int, campaniaID)
+            .input('fechaInicio', sql.Date, r.fecha_inicio)
+            .query(`
+              SELECT * FROM Deserciones_Formacion 
+              WHERE postulante_dni = @dni 
+                AND CampañaID = @CampañaID 
+                AND fecha_inicio = @fechaInicio
+            `);
+          
+          // También verificar todas las deserciones de este DNI
+          const checkTodasDeserciones = await tx.request()
+            .input('dni', sql.VarChar(20), r.postulante_dni)
+            .query(`
+              SELECT * FROM Deserciones_Formacion 
               WHERE postulante_dni = @dni
             `);
-          capa_numero = capaRes.recordset[0]?.capa_numero;
-        }
-        if (capa_numero) {
-          await tx.request()
+          
+          console.log(`=== TODAS LAS DESERCIONES DE ESTE DNI ===`);
+          console.log(`Cantidad: ${checkTodasDeserciones.recordset.length}`);
+          console.log(`Deserciones:`, checkTodasDeserciones.recordset);
+          
+          console.log(`=== DESERCIONES ENCONTRADAS ===`);
+          console.log(`Cantidad: ${checkDeserciones.recordset.length}`);
+          console.log(`Deserciones:`, checkDeserciones.recordset);
+          
+          // Siempre buscar y eliminar deserciones para esta campaña/fecha, independientemente del capa_numero
+          const deleteResult = await tx.request()
             .input('dni', sql.VarChar(20), r.postulante_dni)
-            .input('capa', sql.Int, capa_numero)
+            .input('CampañaID', sql.Int, campaniaID)
+            .input('fechaInicio', sql.Date, r.fecha_inicio)
             .query(`
-              DELETE FROM Deserciones_Formacion WHERE postulante_dni = @dni AND capa_numero = @capa;
-              UPDATE Postulantes_En_Formacion SET FechaCese = NULL WHERE DNI = @dni;
+              DELETE FROM Deserciones_Formacion 
+              WHERE postulante_dni = @dni 
+                AND CampañaID = @CampañaID 
+                AND fecha_inicio = @fechaInicio;
+              UPDATE Postulantes_En_Formacion 
+              SET FechaCese = NULL, EstadoPostulante = 'En Formación'
+              WHERE DNI = @dni 
+                AND CampañaID = @CampañaID 
+                AND FechaInicio = @fechaInicio;
             `);
+          
+          console.log(`=== RESULTADO ELIMINACIÓN ===`);
+          console.log(`Filas afectadas:`, deleteResult.rowsAffected);
+          
+          // Verificar después de la eliminación
+          const checkDespues = await tx.request()
+            .input('dni', sql.VarChar(20), r.postulante_dni)
+            .input('CampañaID', sql.Int, campaniaID)
+            .input('fechaInicio', sql.Date, r.fecha_inicio)
+            .query(`
+              SELECT * FROM Deserciones_Formacion 
+              WHERE postulante_dni = @dni 
+                AND CampañaID = @CampañaID 
+                AND fecha_inicio = @fechaInicio
+            `);
+          
+          console.log(`=== DESERCIONES DESPUÉS ===`);
+          console.log(`Cantidad: ${checkDespues.recordset.length}`);
+          console.log(`Deserciones:`, checkDespues.recordset);
+        } else {
+          console.log(`No se pudo encontrar CampañaID para DNI: ${r.postulante_dni}`);
         }
       }
       // Guardar la asistencia usando capa_numero
-      await tx.request()
+      console.log(`=== GUARDANDO ASISTENCIA ===`);
+      console.log(`DNI: ${r.postulante_dni}`);
+      console.log(`Fecha: ${r.fecha}`);
+      console.log(`Estado: ${r.estado_asistencia}`);
+      console.log(`CampañaID: ${r.CampañaID}`);
+      
+      const asistenciaResult = await tx.request()
         .input("dni",    sql.VarChar(20), r.postulante_dni)
         .input("fecha",  sql.Date,        r.fecha)
         .input("etapa",  sql.VarChar(20), r.etapa)
         .input("estado", sql.Char(1),     r.estado_asistencia)
-        .input("capa",   sql.Int,         r.capa_numero)
+        .input("capa",   sql.Int,         Number(r.capa_numero))
         .input("fechaInicio", sql.Date, r.fecha_inicio)
+        .input("CampañaID", sql.Int, r.CampañaID)
         .query(`
 MERGE Asistencia_Formacion AS T
-USING (SELECT @dni AS dni, @fecha AS fecha, @capa AS capa) AS S
-  ON T.postulante_dni = S.dni AND T.fecha = S.fecha AND T.capa_numero = S.capa
+USING (SELECT @dni AS dni, @fecha AS fecha, @capa AS capa, @CampañaID AS CampañaID) AS S
+  ON T.postulante_dni = S.dni AND T.fecha = S.fecha AND T.capa_numero = S.capa AND T.CampañaID = S.CampañaID
 WHEN MATCHED THEN
   UPDATE SET etapa = @etapa, estado_asistencia = @estado, fecha_inicio = @fechaInicio
 WHEN NOT MATCHED THEN
-  INSERT (postulante_dni,fecha,etapa,estado_asistencia,capa_numero,fecha_inicio)
-  VALUES (@dni,@fecha,@etapa,@estado,@capa,@fechaInicio);
+  INSERT (postulante_dni,fecha,etapa,estado_asistencia,capa_numero,fecha_inicio,CampañaID)
+  VALUES (@dni,@fecha,@etapa,@estado,@capa,@fechaInicio,@CampañaID);
         `);
+      
+      console.log(`=== RESULTADO ASISTENCIA ===`);
+      console.log(`Filas afectadas:`, asistenciaResult.rowsAffected);
     }
     await tx.commit();
     console.log("=== ASISTENCIAS GUARDADAS EXITOSAMENTE ===");
+    console.log("Total de registros procesados:", req.body.length);
     res.json({ ok:true, filas:req.body.length });
   } catch (e) {
     await tx.rollback();
@@ -1400,12 +1474,14 @@ router.get('/capacitaciones/resumen-jefe', async (req, res) => {
       asisMap[key][a.fecha.toISOString().slice(0,10)].push(a.estado_asistencia);
     });
 
-    // 5. Traer bajas por lote
+    // 5. Traer bajas por lote (solo del día 3 en adelante)
     const bajasRows = await R().query(`
-      SELECT CampañaID, FechaInicio, DNI_Capacitador, COUNT(*) AS qBajas
-      FROM Postulantes_En_Formacion
-      WHERE EstadoPostulante = 'Desertó' AND FechaInicio IS NOT NULL
-      GROUP BY CampañaID, FechaInicio, DNI_Capacitador
+      SELECT p.CampañaID, p.FechaInicio, p.DNI_Capacitador, COUNT(*) AS qBajas
+      FROM Deserciones_Formacion d
+      JOIN Postulantes_En_Formacion p ON p.DNI = d.postulante_dni
+      WHERE p.FechaInicio IS NOT NULL
+        AND DATEDIFF(day, p.FechaInicio, d.fecha_desercion) >= 2
+      GROUP BY p.CampañaID, p.FechaInicio, p.DNI_Capacitador
     `);
     const bajasMap = {};
     bajasRows.recordset.forEach(b => {

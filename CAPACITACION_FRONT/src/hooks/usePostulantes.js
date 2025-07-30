@@ -84,11 +84,15 @@ export default function usePostulantes() {
     // Asistencias previas
     const posDni = Object.fromEntries(tabla.map((p,i)=>[p.dni,i]));
     const posF   = Object.fromEntries(d.map((x,i)=>[x,i]));
+    console.log('=== CARGANDO ASISTENCIAS ===');
+    console.log('Asistencias recibidas:', asistencias);
     asistencias.forEach(a=>{
       const r=posDni[a.postulante_dni], c=posF[a.fecha];
       if(r!=null&&c!=null) {
         // Convertir "D" de la BD a "Deserción" en el frontend
-        tabla[r].asistencia[c] = a.estado_asistencia === "D" ? "Deserción" : a.estado_asistencia;
+        const valorFinal = a.estado_asistencia === "D" ? "Deserción" : a.estado_asistencia;
+        tabla[r].asistencia[c] = valorFinal;
+        console.log(`Asistencia para ${a.postulante_dni} en ${a.fecha}: ${a.estado_asistencia} -> ${valorFinal}`);
       }
     });
     setTablaDatos(tabla);
@@ -185,27 +189,38 @@ export default function usePostulantes() {
       if (p.dirty) {
         p.asistencia.forEach((est, i) => {
           if (est && est !== "---") {
+            // Asegurar que CampañaID nunca sea undefined
+            const campaniaID = params.campaniaID || p.CampañaID;
             payloadA.push({
               postulante_dni: p.dni,
               fecha: dias[i],
               etapa: i < capCount ? "Capacitacion" : "OJT",
               estado_asistencia: est === "Deserción" ? "D" : est,
               capa_numero: capaNum,
-              CampañaID: params.campaniaID,
+              CampañaID: campaniaID,
               fecha_inicio: params.fechaInicio
             });
           }
         });
       }
     });
+    // Filtrar deserciones que no han sido canceladas por cambios de asistencia
+    const desercionesCanceladas = new Set();
+    payloadA.forEach(asistencia => {
+      if (asistencia.estado_asistencia !== 'D') {
+        desercionesCanceladas.add(asistencia.postulante_dni);
+      }
+    });
+    
     const desToSend = deserciones
       .filter(d => d.motivo && d.motivo.trim() !== "")
+      .filter(d => !desercionesCanceladas.has(d.postulante_dni)) // Excluir deserciones canceladas
       .map(d => ({
         postulante_dni: d.postulante_dni,
         fecha_desercion: d.fecha_desercion,
         motivo: d.motivo,
         capa_numero: Number(d.capa_numero),
-        CampañaID: params.campaniaID || d.CampañaID,
+        CampañaID: d.CampañaID || params.campaniaID,
         fecha_inicio: params.fechaInicio
       }));
     const payloadE = evaluaciones
@@ -244,7 +259,10 @@ export default function usePostulantes() {
     console.log('Estados finales a enviar:', payloadEstados);
 
     // LOGS DE DEPURACIÓN
+    console.log("Params recibidos:", params);
+    console.log("CampañaID en params:", params.campaniaID);
     console.log("Asistencias a enviar:", payloadA);
+    console.log("Deserciones canceladas:", Array.from(desercionesCanceladas));
     console.log("Deserciones a enviar (con CampañaID):", desToSend);
     console.log("Evaluaciones a enviar:", payloadE);
 
@@ -268,6 +286,10 @@ export default function usePostulantes() {
       // Limpiar dirty tras guardar
       setTablaDatos(t => t.map(row => ({ ...row, dirty: false })));
       setDirty(false);
+      
+      // Recargar datos para reflejar cambios en la vista
+      await loadLote({ dniCap: params.dniCap, CampañaID: params.campaniaID, mes: params.mes, fechaInicio: params.fechaInicio, capaNum: params.capaNum, horariosBase: params.horariosBase });
+      
       alert("Cambios guardados ✔️");
     } catch (error) {
       console.error("Error al guardar:", error);
