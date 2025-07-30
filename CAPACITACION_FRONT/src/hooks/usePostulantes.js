@@ -125,8 +125,19 @@ export default function usePostulantes() {
       const copy = [...t];
       copy[row] = { ...copy[row] };
       copy[row].asistencia = [...copy[row].asistencia];
+      
+      // Verificar si estaba en deserción y ahora cambia a asistencia normal
+      const estabaEnDesercion = copy[row].asistencia[col] === "Deserción";
+      const cambiaAAistenciaNormal = val !== "Deserción" && val !== "---" && val !== "";
+      
       copy[row].asistencia[col] = val;
       copy[row].dirty = true; // MARCA DIRTY SOLO EN ASISTENCIAS
+      
+      // Si cambia de deserción a asistencia normal, actualizar resultadoFinal
+      if (estabaEnDesercion && cambiaAAistenciaNormal) {
+        copy[row].resultadoFinal = "Capacitacion";
+      }
+      
       // Bloqueo tras deserción
       if (val === "Deserción") {
         for (let i = col + 1; i < copy[row].asistencia.length; i++) {
@@ -231,6 +242,17 @@ export default function usePostulantes() {
       .filter(p => p.dirty && p.resultadoFinal)
       .map(p => {
         const CampañaID = params.campaniaID || params.CampañaID || p.CampañaID;
+        
+        // Si el postulante tenía deserción y ahora tiene asistencia normal, 
+        // no enviar el estado "Desertó" porque ya se actualizó en el backend
+        const tieneDesercionCancelada = p.asistencia.some(est => est === "Deserción") === false && 
+                                      p.asistencia.some(est => est === "A" || est === "F" || est === "J" || est === "T") === true;
+        
+        if (tieneDesercionCancelada && p.resultadoFinal === "Desertó") {
+          // No enviar este estado porque ya se actualizó en el backend
+          return null;
+        }
+        
         if (p.resultadoFinal === 'Desaprobado') {
           return {
             dni: p.dni,
@@ -246,7 +268,8 @@ export default function usePostulantes() {
           CampañaID,
           fecha_inicio: params.fechaInicio
         };
-      });
+      })
+      .filter(p => p !== null); // Filtrar los null
     // Nuevo payload para turno y horario
     const payloadPostulantes = tablaDatos
       .filter(p => p.dirty)
@@ -288,7 +311,7 @@ export default function usePostulantes() {
       setDirty(false);
       
       // Recargar datos para reflejar cambios en la vista
-      await loadLote({ dniCap: params.dniCap, CampañaID: params.campaniaID, mes: params.mes, fechaInicio: params.fechaInicio, capaNum: params.capaNum, horariosBase: params.horariosBase });
+      await loadLote({ dniCap: params.dniCap, CampañaID: params.CampañaID, mes: params.mes, fechaInicio: params.fechaInicio, capaNum: params.capaNum, horariosBase: params.horariosBase });
       
       alert("Cambios guardados ✔️");
     } catch (error) {

@@ -53,13 +53,23 @@ export default function ResumenCapacitacionesJefeTable() {
 
   React.useEffect(() => {
     setLoading(true);
-    api(`/api/capacitaciones/resumen-jefe?page=${page}&pageSize=${PAGE_SIZE}`)
+    // Construir query params con filtros
+    const params = new URLSearchParams({
+      page: page.toString(),
+      pageSize: PAGE_SIZE.toString()
+    });
+    
+    if (filtroCampania) params.append('campania', filtroCampania);
+    if (filtroFormador) params.append('formador', filtroFormador);
+    if (filtroEstado) params.append('estado', filtroEstado);
+    
+    api(`/api/capacitaciones/resumen-jefe?${params.toString()}`)
       .then(res => {
         setRows(res.data || []);
         setTotal(res.total || 0);
         setLoading(false);
       });
-  }, [page]);
+  }, [page, filtroCampania, filtroFormador, filtroEstado]);
 
   React.useEffect(() => {
     if (diasHeaderRef.current) {
@@ -76,24 +86,30 @@ export default function ResumenCapacitacionesJefeTable() {
     setDiasOffset(Math.min(DIAS_MAX - DIAS_VISIBLES, diasOffset + 6));
   };
 
-  // Obtener opciones únicas para los filtros
-  const campaniasUnicas = [...new Set(rows.map(row => row.campania))].sort();
-  const formadoresUnicos = [...new Set(rows.map(row => row.formador))].sort();
+  // Estados para opciones de filtros
+  const [campaniasUnicas, setCampaniasUnicas] = React.useState([]);
+  const [formadoresUnicos, setFormadoresUnicos] = React.useState([]);
   
-  // Aplicar filtros
-  const rowsFiltradas = rows.filter(row => {
-    const cumpleCampania = !filtroCampania || row.campania === filtroCampania;
-    const cumpleFormador = !filtroFormador || row.formador === filtroFormador;
-    const cumpleEstado = !filtroEstado || 
-      (filtroEstado === 'En curso' && !row.finalizado) ||
-      (filtroEstado === 'Finalizado' && row.finalizado);
-    
-    return cumpleCampania && cumpleFormador && cumpleEstado;
-  });
+  // Cargar opciones de filtros
+  React.useEffect(() => {
+    api('/api/capacitaciones/opciones-filtros')
+      .then(res => {
+        setCampaniasUnicas(res.campanias || []);
+        setFormadoresUnicos(res.formadores || []);
+      })
+      .catch(err => {
+        console.error('Error al cargar opciones de filtros:', err);
+        // Fallback: usar datos de las filas actuales
+        setCampaniasUnicas([...new Set(rows.map(row => row.campania))].sort());
+        setFormadoresUnicos([...new Set(rows.map(row => row.formador))].sort());
+      });
+  }, []);
+  
+  // Los filtros ya se aplican en el backend, no necesitamos filtrar aquí
+  const paginatedRows = rows;
   
   // Paginación real (ya viene paginado del backend)
   const totalPages = Math.ceil(total / PAGE_SIZE);
-  const paginatedRows = rowsFiltradas;
 
   if (loading) return <div className="p-8 text-center text-gray-500">Cargando resumen...</div>;
 
@@ -104,11 +120,14 @@ export default function ResumenCapacitacionesJefeTable() {
         {/* Filtro Campaña */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Campaña</label>
-          <select
-            value={filtroCampania}
-            onChange={(e) => setFiltroCampania(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
+                  <select
+          value={filtroCampania}
+          onChange={(e) => {
+            setFiltroCampania(e.target.value);
+            setPage(1); // Reiniciar a la primera página cuando se cambia el filtro
+          }}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
             <option value="">Todas las campañas</option>
             {campaniasUnicas.map(campania => (
               <option key={campania} value={campania}>{campania}</option>
@@ -119,11 +138,14 @@ export default function ResumenCapacitacionesJefeTable() {
         {/* Filtro Formador */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Formador</label>
-          <select
-            value={filtroFormador}
-            onChange={(e) => setFiltroFormador(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
+                  <select
+          value={filtroFormador}
+          onChange={(e) => {
+            setFiltroFormador(e.target.value);
+            setPage(1); // Reiniciar a la primera página cuando se cambia el filtro
+          }}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
             <option value="">Todos los formadores</option>
             {formadoresUnicos.map(formador => (
               <option key={formador} value={formador}>{formador}</option>
@@ -134,11 +156,14 @@ export default function ResumenCapacitacionesJefeTable() {
         {/* Filtro Estado */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Estado</label>
-          <select
-            value={filtroEstado}
-            onChange={(e) => setFiltroEstado(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
+                  <select
+          value={filtroEstado}
+          onChange={(e) => {
+            setFiltroEstado(e.target.value);
+            setPage(1); // Reiniciar a la primera página cuando se cambia el filtro
+          }}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
             <option value="">Todos los estados</option>
             <option value="En curso">En curso</option>
             <option value="Finalizado">Finalizado</option>

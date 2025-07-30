@@ -532,7 +532,7 @@ router.post('/asistencia/bulk', authMiddleware, async (req, res) => {
                 AND CampañaID = @CampañaID 
                 AND fecha_inicio = @fechaInicio;
               UPDATE Postulantes_En_Formacion 
-              SET FechaCese = NULL, EstadoPostulante = 'En Formación'
+              SET FechaCese = NULL, EstadoPostulante = 'Capacitacion'
               WHERE DNI = @dni 
                 AND CampañaID = @CampañaID 
                 AND FechaInicio = @fechaInicio;
@@ -1414,12 +1414,16 @@ router.delete("/fotos-perfil/:dni", authMiddleware, async (req, res) => {
 
 // Endpoint real para resumen de capacitaciones de la jefa con paginación
 router.get('/capacitaciones/resumen-jefe', async (req, res) => {
-  // Parámetros de paginación
+  // Parámetros de paginación y filtros
   const page = parseInt(req.query.page) || 1;
   const pageSize = parseInt(req.query.pageSize) || 10;
+  const campania = req.query.campania;
+  const formador = req.query.formador;
+  const estado = req.query.estado;
+  
   try {
-    // 1. Traer todas las capacitaciones/lotes (usando nombres exactos)
-    const lotes = await R().query(`
+    // Construir query base con filtros
+    let query = `
       SELECT pf.CampañaID, pf.FechaInicio, pf.DNI_Capacitador, c.NombreCampaña, m.NombreModalidad,
              pf.DNI_Capacitador AS formadorDNI, pf.FechaInicio AS inicioCapa,
              pf.ModalidadID, pf.CampañaID,
@@ -1429,8 +1433,24 @@ router.get('/capacitaciones/resumen-jefe', async (req, res) => {
       LEFT JOIN PRI.ModalidadesTrabajo m ON pf.ModalidadID = m.ModalidadID
       LEFT JOIN PRI.Empleados e ON pf.DNI_Capacitador = e.DNI
       WHERE pf.FechaInicio IS NOT NULL
-      GROUP BY pf.CampañaID, pf.FechaInicio, pf.DNI_Capacitador, c.NombreCampaña, m.NombreModalidad, pf.ModalidadID, e.Nombres, e.ApellidoPaterno, e.ApellidoMaterno
-    `);
+    `;
+    
+    // Agregar filtros si están presentes
+    if (campania) {
+      query += ` AND c.NombreCampaña = @campania`;
+    }
+    if (formador) {
+      query += ` AND e.Nombres + ' ' + e.ApellidoPaterno + ' ' + e.ApellidoMaterno = @formador`;
+    }
+    
+    query += ` GROUP BY pf.CampañaID, pf.FechaInicio, pf.DNI_Capacitador, c.NombreCampaña, m.NombreModalidad, pf.ModalidadID, e.Nombres, e.ApellidoPaterno, e.ApellidoMaterno`;
+    
+    // Ejecutar query con parámetros
+    const request = R();
+    if (campania) request.input('campania', sql.VarChar(100), campania);
+    if (formador) request.input('formador', sql.VarChar(200), formador);
+    
+    const lotes = await request.query(query);
     let rows = lotes.recordset;
 
     // 2. Traer Q ENTRE para cada lote
@@ -1460,10 +1480,23 @@ router.get('/capacitaciones/resumen-jefe', async (req, res) => {
       FROM Asistencia_Formacion a
       JOIN Postulantes_En_Formacion p ON a.postulante_dni = p.DNI 
         AND a.fecha_inicio = p.FechaInicio
+        AND a.CampañaID = p.CampañaID
       WHERE p.FechaInicio IS NOT NULL
     `);
     console.log('DEBUG: Total asistencias encontradas:', asisRows.recordset.length);
     console.log('DEBUG: Primeras 5 asistencias:', asisRows.recordset.slice(0, 5));
+    
+    // Debug específico para Josep (75707924)
+    const asistenciasJosep = asisRows.recordset.filter(a => a.DNI_Capacitador === '75707924');
+    console.log('DEBUG JOSEP: Total asistencias para Josep:', asistenciasJosep.length);
+    console.log('DEBUG JOSEP: Asistencias específicas:', asistenciasJosep);
+    
+    // Debug adicional: verificar si hay asistencias para la campaña Hogar específicamente
+    const asistenciasJosepHogar = asistenciasJosep.filter(a => {
+      const key = `${a.CampañaID}_${a.FechaInicio.toISOString().slice(0,10)}_${a.DNI_Capacitador}`;
+      return key.includes('2025-07-02'); // Fecha específica del problema
+    });
+    console.log('DEBUG JOSEP HOGAR: Asistencias para Hogar 2025-07-02:', asistenciasJosepHogar);
     const asisMap = {};
     asisRows.recordset.forEach(a => {
       const key = `${a.CampañaID}_${a.FechaInicio.toISOString().slice(0,10)}_${a.DNI_Capacitador}`;
@@ -1475,20 +1508,49 @@ router.get('/capacitaciones/resumen-jefe', async (req, res) => {
     });
 
     // 5. Traer bajas por lote (solo del día 3 en adelante)
-    const bajasRows = await R().query(`
-      SELECT p.CampañaID, p.FechaInicio, p.DNI_Capacitador, COUNT(*) AS qBajas
+    // Primero traer todas las deserciones y luego filtrar por días laborables
+    const todasDeserciones = await R().query(`
+      SELECT d.postulante_dni, d.fecha_desercion, p.CampañaID, p.FechaInicio, p.DNI_Capacitador
       FROM Deserciones_Formacion d
-      JOIN Postulantes_En_Formacion p ON p.DNI = d.postulante_dni
+      JOIN Postulantes_En_Formacion p ON p.DNI = d.postulante_dni 
+        AND p.CampañaID = d.CampañaID
+        AND p.FechaInicio = d.fecha_inicio
       WHERE p.FechaInicio IS NOT NULL
-        AND DATEDIFF(day, p.FechaInicio, d.fecha_desercion) >= 2
-      GROUP BY p.CampañaID, p.FechaInicio, p.DNI_Capacitador
     `);
-    const bajasMap = {};
-    bajasRows.recordset.forEach(b => {
-      bajasMap[`${b.CampañaID}_${b.FechaInicio.toISOString().slice(0,10)}_${b.DNI_Capacitador}`] = b.qBajas;
+    
+    // Función para calcular días laborables entre dos fechas
+    const calcularDiasLaborables = (fechaInicio, fechaDesercion) => {
+      const inicio = new Date(fechaInicio);
+      const desercion = new Date(fechaDesercion);
+      let diasLaborables = 0;
+      let fechaActual = new Date(inicio);
+      
+      while (fechaActual <= desercion) {
+        if (fechaActual.getDay() !== 0) { // Excluir domingos
+          diasLaborables++;
+        }
+        fechaActual.setDate(fechaActual.getDate() + 1);
+      }
+      return diasLaborables;
+    };
+    
+    // Filtrar deserciones del día 3 en adelante (días laborables)
+    const desercionesFiltradas = todasDeserciones.recordset.filter(d => {
+      const diasLaborables = calcularDiasLaborables(d.FechaInicio, d.fecha_desercion);
+      return diasLaborables >= 3;
     });
-    console.log('DEBUG: Bajas encontradas:', bajasRows.recordset.length);
-    console.log('DEBUG: Primeros 3 registros de bajas:', bajasRows.recordset.slice(0, 3));
+    
+    // Agrupar por lote
+    const bajasMap = {};
+    desercionesFiltradas.forEach(d => {
+      const key = `${d.CampañaID}_${d.FechaInicio.toISOString().slice(0,10)}_${d.DNI_Capacitador}`;
+      if (!bajasMap[key]) bajasMap[key] = 0;
+      bajasMap[key]++;
+    });
+    
+    console.log('DEBUG: Total deserciones encontradas:', todasDeserciones.recordset.length);
+    console.log('DEBUG: Deserciones filtradas (día 3+):', desercionesFiltradas.length);
+    console.log('DEBUG: Bajas por lote:', bajasMap);
 
     // 6. Armar los datos finales
     let allRows = rows.map(lote => {
@@ -1498,6 +1560,16 @@ router.get('/capacitaciones/resumen-jefe', async (req, res) => {
       console.log(`DEBUG KEY: ${key}`);
       console.log(`DEBUG listaMap keys:`, Object.keys(listaMap));
       console.log(`DEBUG bajasMap keys:`, Object.keys(bajasMap));
+      
+      // Debug específico para Josep
+      if (lote.DNI_Capacitador === '75707924') {
+        console.log(`DEBUG JOSEP - Procesando lote: ${lote.NombreCampaña} - ${lote.FechaInicio.toISOString().slice(0,10)}`);
+        console.log(`DEBUG JOSEP - Key generada: ${key}`);
+        console.log(`DEBUG JOSEP - ¿Existe en asisMap?`, !!asisMap[key]);
+        if (asisMap[key]) {
+          console.log(`DEBUG JOSEP - Fechas disponibles:`, Object.keys(asisMap[key]));
+        }
+      }
       
       const qEntre = qEntreMap[key] || 0;
       const esperado = qEntre * 2;
@@ -1510,6 +1582,15 @@ router.get('/capacitaciones/resumen-jefe', async (req, res) => {
         // Contar cuántos postulantes tienen asistencia 'A' en el primer día
         primerDia = asisMap[key][primerDiaFecha].filter(estado => estado === 'A').length;
         console.log(`DEBUG ${lote.NombreCampaña} - Primer día: ${primerDiaFecha}, Asistencias totales: ${asisMap[key][primerDiaFecha].length}, Asistencias 'A': ${primerDia}`);
+      }
+      
+      // Debug específico para Josep - primer día
+      if (lote.DNI_Capacitador === '75707924') {
+        console.log(`DEBUG JOSEP - Primer día fecha: ${primerDiaFecha}`);
+        console.log(`DEBUG JOSEP - ¿Tiene asistencias en primer día?`, !!(asisMap[key] && asisMap[key][primerDiaFecha]));
+        if (asisMap[key] && asisMap[key][primerDiaFecha]) {
+          console.log(`DEBUG JOSEP - Asistencias primer día:`, asisMap[key][primerDiaFecha]);
+        }
       }
       // % EFEC ATH
       const porcentajeEfec = esperado > 0 ? Math.round((primerDia / esperado) * 100) : 0;
@@ -1546,6 +1627,12 @@ router.get('/capacitaciones/resumen-jefe', async (req, res) => {
         console.log(`DEBUG ${lote.NombreCampaña} - Key: ${key}`);
         console.log(`DEBUG ${lote.NombreCampaña} - Fechas con asistencias:`, Object.keys(asisMap[key] || {}));
         console.log(`DEBUG ${lote.NombreCampaña} - Primeros 7 días de asistencias:`, asistencias.slice(0, 7));
+        
+        // Debug específico para Josep - asistencias
+        if (lote.DNI_Capacitador === '75707924') {
+          console.log(`DEBUG JOSEP - Asistencias calculadas:`, asistencias.slice(0, 7));
+          console.log(`DEBUG JOSEP - Fechas consecutivas:`, fechasConsecutivas.slice(0, 7));
+        }
       }
       // Activos = lista - bajas
       const qBajas = bajasMap[key] || 0;
@@ -1554,11 +1641,31 @@ router.get('/capacitaciones/resumen-jefe', async (req, res) => {
       
       // Debug: Log para verificar los valores
       console.log(`DEBUG ${lote.NombreCampaña}: lista=${lista}, qBajas=${qBajas}, activos=${activos}, primerDia=${primerDia}, porcentajeDeser=${porcentajeDeser}%`);
-      // Calcular fecha fin OJT basada en la duración de la campaña
+      // Calcular fecha fin OJT basada en la duración de la campaña (excluyendo domingos)
       const duracion = obtenerDuracion(lote.NombreCampaña);
       const fechaInicio = new Date(lote.FechaInicio);
-      const fechaFinOJT = new Date(fechaInicio);
-      fechaFinOJT.setDate(fechaInicio.getDate() + duracion.cap + duracion.ojt - 1); // -1 porque el primer día cuenta
+      
+      // Función para obtener siguiente fecha excluyendo domingos
+      const nextDate = (iso) => {
+        const [y,m,d] = iso.split("-").map(Number);
+        const dt = new Date(y, m-1, d);
+        do { dt.setDate(dt.getDate()+1); } while (dt.getDay()===0);
+        return dt.toISOString().slice(0,10);
+      };
+      
+      // Calcular fecha fin OJT excluyendo domingos
+      let fechaFinOJT = new Date(fechaInicio);
+      const totalDias = duracion.cap + duracion.ojt - 1; // -1 porque el primer día cuenta
+      
+      // Avanzar día por día excluyendo domingos
+      for (let i = 0; i < totalDias; i++) {
+        const fechaStr = fechaFinOJT.toISOString().slice(0,10);
+        fechaFinOJT = new Date(nextDate(fechaStr));
+      }
+      
+      // Determinar si está finalizada (fecha actual > fecha fin OJT)
+      const fechaActual = new Date();
+      const finalizado = fechaActual > fechaFinOJT;
       
       return {
         id: key,
@@ -1567,6 +1674,7 @@ router.get('/capacitaciones/resumen-jefe', async (req, res) => {
         formador: lote.formador,
         inicioCapa: lote.FechaInicio.toISOString().slice(0,10),
         finOjt: fechaFinOJT.toISOString().slice(0,10),
+        finalizado,
         qEntre,
         lista,
         primerDia,
@@ -1578,8 +1686,21 @@ router.get('/capacitaciones/resumen-jefe', async (req, res) => {
       };
     });
 
+    // Aplicar filtro de estado si está presente
+    if (estado) {
+      allRows = allRows.filter(row => {
+        if (estado === 'En curso') {
+          return !row.finalizado;
+        } else if (estado === 'Finalizado') {
+          return row.finalizado;
+        }
+        return true;
+      });
+    }
+    
     // Ordenar por fechaInicio descendente
     allRows.sort((a, b) => new Date(b.inicioCapa) - new Date(a.inicioCapa));
+    
     // Paginación
     const paginated = allRows.slice((page - 1) * pageSize, page * pageSize);
     res.json({
@@ -1591,6 +1712,37 @@ router.get('/capacitaciones/resumen-jefe', async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Error al obtener resumen de capacitaciones' });
+  }
+});
+
+// Endpoint para obtener opciones de filtros
+router.get('/capacitaciones/opciones-filtros', async (req, res) => {
+  try {
+    // Obtener campañas únicas
+    const campanias = await R().query(`
+      SELECT DISTINCT c.NombreCampaña
+      FROM Postulantes_En_Formacion pf
+      LEFT JOIN PRI.Campanias c ON pf.CampañaID = c.CampañaID
+      WHERE pf.FechaInicio IS NOT NULL
+      ORDER BY c.NombreCampaña
+    `);
+    
+    // Obtener formadores únicos
+    const formadores = await R().query(`
+      SELECT DISTINCT e.Nombres + ' ' + e.ApellidoPaterno + ' ' + e.ApellidoMaterno AS formador
+      FROM Postulantes_En_Formacion pf
+      LEFT JOIN PRI.Empleados e ON pf.DNI_Capacitador = e.DNI
+      WHERE pf.FechaInicio IS NOT NULL
+      ORDER BY formador
+    `);
+    
+    res.json({
+      campanias: campanias.recordset.map(c => c.NombreCampaña),
+      formadores: formadores.recordset.map(f => f.formador)
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Error al obtener opciones de filtros' });
   }
 });
 
