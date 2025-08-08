@@ -209,6 +209,104 @@ const desercionesFiltradas = todasDeserciones.recordset.filter(d => {
 });
 ```
 
+### **Problema 9: Dashboard del jefe - Filtros y paginación**
+**Síntoma:** Al filtrar por campaña o formador, no muestra los primeros 10 registros
+**Causa:** Filtros aplicados localmente después de recibir datos paginados del backend
+**Solución:** Enviar filtros al backend y reiniciar paginación
+```javascript
+// Frontend: Enviar filtros al backend
+const params = new URLSearchParams({
+  page: page.toString(),
+  pageSize: PAGE_SIZE.toString()
+});
+
+if (filtroCampania) params.append('campania', filtroCampania);
+if (filtroFormador) params.append('formador', filtroFormador);
+if (filtroEstado) params.append('estado', filtroEstado);
+
+// Reiniciar página al cambiar filtros
+onChange={(e) => {
+  setFiltroCampania(e.target.value);
+  setPage(1); // Reiniciar a la primera página
+}}
+```
+
+### **Problema 10: Dashboard del jefe - JOIN incompleto en asistencias**
+**Síntoma:** Capacitador específico (Josep 75707924) no muestra asistencias en columnas de días
+**Causa:** JOIN en consulta de asistencias no incluía condición de CampañaID
+**Solución:** Agregar condición de campaña al JOIN
+```sql
+-- ANTES (incorrecto):
+JOIN Postulantes_En_Formacion p ON a.postulante_dni = p.DNI 
+  AND a.fecha_inicio = p.FechaInicio
+
+-- DESPUÉS (correcto):
+JOIN Postulantes_En_Formacion p ON a.postulante_dni = p.DNI 
+  AND a.fecha_inicio = p.FechaInicio
+  AND a.CampañaID = p.CampañaID
+```
+
+### **Problema 11: Dashboard del jefe - Caso especial sin asistencias normales**
+**Síntoma:** Capacitador Josep (75707924) en Hogar 2025-07-02 muestra 0 en "1er DÍA" y días vacíos
+**Causa:** Solo existen deserciones (D) en la base de datos, no asistencias normales (A, F, J, T)
+**Solución:** Verificar datos y agregar asistencias normales si es necesario
+```sql
+-- Consulta para verificar asistencias normales
+SELECT 
+    a.postulante_dni,
+    a.fecha,
+    a.estado_asistencia,
+    p.Nombres + ' ' + p.ApellidoPaterno + ' ' + p.ApellidoMaterno AS NombrePostulante
+FROM Asistencia_Formacion a
+JOIN Postulantes_En_Formacion p ON a.postulante_dni = p.DNI 
+    AND a.fecha_inicio = p.FechaInicio
+    AND a.CampañaID = p.CampañaID
+WHERE p.DNI_Capacitador = '75707924'
+    AND p.CampañaID = 15  -- Hogar
+    AND p.FechaInicio = '2025-07-02'
+    AND a.estado_asistencia IN ('A', 'F', 'J', 'T')  -- Solo asistencias normales
+ORDER BY a.fecha, a.postulante_dni;
+```
+
+### **Problema 12: Dashboard del jefe - Nueva fórmula para % DESERCIÓN**
+**Síntoma:** Fórmula actual no refleja la deserción real de postulantes activos
+**Causa:** Fórmula anterior usaba `Q BAJAS / LISTA` (todas las deserciones / todos los postulantes)
+**Solución:** Implementar nueva fórmula más precisa
+```javascript
+// NUEVA FÓRMULA: % DESERCIÓN = (Bajas día 3+) / (Postulantes con asistencia en día 2 laborable)
+
+// Calcular día 2 laborable (excluyendo domingos)
+let dia2Laborable = new Date(lote.FechaInicio);
+let diasAvanzados = 0;
+while (diasAvanzados < 2) {
+  dia2Laborable.setDate(dia2Laborable.getDate() + 1);
+  if (dia2Laborable.getDay() !== 0) { // No es domingo
+    diasAvanzados++;
+  }
+}
+
+const dia2Fecha = dia2Laborable.toISOString().slice(0,10);
+
+// Contar postulantes con asistencia registrada en el día 2 laborable
+let postulantesDia2 = 0;
+if (asisMap[key] && asisMap[key][dia2Fecha]) {
+  // Contar postulantes con estados A, F, J, T (asistencias normales)
+  postulantesDia2 = asisMap[key][dia2Fecha].filter(estado => 
+    estado === 'A' || estado === 'F' || estado === 'J' || estado === 'T'
+  ).length;
+}
+
+// Calcular porcentaje de deserción con nueva fórmula
+const porcentajeDeser = postulantesDia2 > 0 ? Math.round((qBajas / postulantesDia2) * 100) : 0;
+```
+
+**Lógica de la nueva fórmula:**
+- **Numerador:** `qBajas` (deserciones del día 3 laborable en adelante - ya calculado)
+- **Denominador:** `postulantesDia2` (postulantes con asistencia en día 2 laborable)
+- **Estados válidos:** A, F, J, T (asistencias normales)
+- **Excluye:** Estados D (deserción) y vacíos
+- **Días laborables:** Excluye domingos automáticamente
+
 ---
 
 ## 📊 **ESTRUCTURA DE BASE DE DATOS**
@@ -271,8 +369,29 @@ const desercionesFiltradas = todasDeserciones.recordset.filter(d => {
 ### **Lógica de Cálculos:**
 - **FECHA FIN OJT:** Calculada excluyendo domingos
 - **Q BAJAS:** Solo deserciones del día 3 laborable en adelante
+- **% DESERCIÓN:** Nueva fórmula = (Q BAJAS) / (Postulantes con asistencia en día 2 laborable)
 - **Días laborables:** Excluyen domingos automáticamente
 - **Filtrado por campaña:** Cada campaña es independiente
+
+### **Nueva Fórmula de % DESERCIÓN:**
+**Fórmula anterior:** `Q BAJAS / LISTA` (todas las deserciones / todos los postulantes)
+**Fórmula nueva:** `Q BAJAS / Postulantes día 2` (deserciones día 3+ / postulantes activos día 2)
+
+**Ventajas de la nueva fórmula:**
+- ✅ **Más precisa:** Solo considera postulantes que realmente participaron
+- ✅ **Mejor indicador:** Mide deserción de la población activa
+- ✅ **Excluye:** Postulantes que nunca asistieron o desertaron antes del día 2
+- ✅ **Consistente:** Usa días laborables en todo el cálculo
+
+### **Caso Especial Documentado: Josep (75707924)**
+**Contexto:** Capacitador Josep en campaña Hogar 2025-07-02 presentaba columnas de días vacías
+**Diagnóstico:** 
+1. JOIN incompleto en consulta de asistencias (faltaba `AND a.CampañaID = p.CampañaID`)
+2. Solo existían deserciones (D) en la base de datos, no asistencias normales (A, F, J, T)
+**Solución aplicada:**
+1. Corregir JOIN en consulta de asistencias
+2. Agregar manualmente asistencias normales a la base de datos
+**Resultado:** Dashboard muestra correctamente todos los datos
 
 ---
 
@@ -375,6 +494,9 @@ npm run dev
 - **Base de datos:** SQL Server con tablas específicas para capacitaciones
 - **Dashboard del jefe:** Usa días laborables (excluye domingos) para todos los cálculos
 - **Consistencia:** Dashboard y tabla de asistencias deben mostrar los mismos datos
+- **Diagnóstico de datos:** Antes de modificar código, verificar si el problema es de datos o de lógica
+- **JOINs completos:** Siempre incluir todas las condiciones necesarias en los JOINs
+- **Fórmulas de dashboard:** % DESERCIÓN usa nueva fórmula con postulantes activos del día 2
 
 ## 🔍 **CHECKLIST DE DEBUGGING**
 
@@ -409,6 +531,10 @@ npm run dev
 | Dashboard Q BAJAS incorrecto | JOIN sin filtro de campaña | Agregar condiciones de campaña en JOIN |
 | FECHA FIN OJT incorrecta | Días de calendario | Usar cálculo de días laborables |
 | Conteo deserciones discrepante | DATEDIFF vs días laborables | Implementar cálculo de días laborables |
+| Filtros no muestran primeros 10 registros | Filtros aplicados localmente | Enviar filtros al backend |
+| Columnas de días vacías | JOIN incompleto en asistencias | Agregar `AND a.CampañaID = p.CampañaID` |
+| Solo deserciones, no asistencias normales | Datos faltantes en BD | Verificar y agregar asistencias normales |
+| % DESERCIÓN no refleja realidad | Fórmula usa LISTA total | Usar postulantes con asistencia en día 2 |
 
 ---
 

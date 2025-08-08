@@ -1637,10 +1637,38 @@ router.get('/capacitaciones/resumen-jefe', async (req, res) => {
       // Activos = lista - bajas
       const qBajas = bajasMap[key] || 0;
       const activos = lista - qBajas;
-      const porcentajeDeser = lista > 0 ? Math.round((qBajas / lista) * 100) : 0;
+      
+      // Nueva fórmula: % Deserción = (Bajas día 3+) / (Postulantes con asistencia en día 2 laborable)
+      let postulantesDia2 = 0;
+      
+      // Calcular día 2 laborable (excluyendo domingos)
+      let dia2Laborable = new Date(lote.FechaInicio);
+      
+      // Avanzar al día 2 laborable (excluyendo domingos)
+      let diasAvanzados = 0;
+      while (diasAvanzados < 2) {
+        dia2Laborable.setDate(dia2Laborable.getDate() + 1);
+        if (dia2Laborable.getDay() !== 0) { // No es domingo
+          diasAvanzados++;
+        }
+      }
+      
+      const dia2Fecha = dia2Laborable.toISOString().slice(0,10);
+      
+      // Contar postulantes con asistencia registrada en el día 2 laborable
+      if (asisMap[key] && asisMap[key][dia2Fecha]) {
+        // Contar postulantes con estados A, F, J, T (asistencias normales)
+        postulantesDia2 = asisMap[key][dia2Fecha].filter(estado => 
+          estado === 'A' || estado === 'F' || estado === 'J' || estado === 'T'
+        ).length;
+      }
+      
+      // Calcular porcentaje de deserción con nueva fórmula
+      const porcentajeDeser = postulantesDia2 > 0 ? Math.round((qBajas / postulantesDia2) * 100) : 0;
       
       // Debug: Log para verificar los valores
       console.log(`DEBUG ${lote.NombreCampaña}: lista=${lista}, qBajas=${qBajas}, activos=${activos}, primerDia=${primerDia}, porcentajeDeser=${porcentajeDeser}%`);
+      console.log(`DEBUG ${lote.NombreCampaña}: Nueva fórmula - dia2Fecha=${dia2Fecha}, postulantesDia2=${postulantesDia2}, qBajas=${qBajas}, porcentajeDeser=${porcentajeDeser}%`);
       // Calcular fecha fin OJT basada en la duración de la campaña (excluyendo domingos)
       const duracion = obtenerDuracion(lote.NombreCampaña);
       const fechaInicio = new Date(lote.FechaInicio);
