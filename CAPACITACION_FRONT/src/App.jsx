@@ -372,7 +372,8 @@ export default function App() {
       CampañaID: capaSeleccionada.CampañaID,
       mes: capaSeleccionada.fechaInicio.slice(0, 7),
       fechaInicio: capaSeleccionada.fechaInicio,
-      capaNum: capaSeleccionada.capa
+      capaNum: capaSeleccionada.capa,
+      horariosBase // Pasar horariosBase para mantener consistencia
     });
   };
 

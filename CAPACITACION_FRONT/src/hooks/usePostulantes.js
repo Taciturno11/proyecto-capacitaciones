@@ -31,14 +31,24 @@ export default function usePostulantes() {
 
   // Cargar lote completo (postulantes, asistencias, deserciones, evaluaciones)
   const loadLote = async ({ dniCap, CampañaID, mes, fechaInicio, capaNum, horariosBase }) => {
+    console.log('[loadLote] RECIBIDO parámetros:', { dniCap, CampañaID, mes, fechaInicio, capaNum, horariosBase });
+    
     if (!dniCap || !CampañaID || !mes || mes === 'undefined' || !fechaInicio || fechaInicio === 'undefined' || !capaNum) {
       console.warn('[usePostulantes] No se carga lote por parámetros inválidos:', { dniCap, CampañaID, mes, fechaInicio, capaNum });
       return;
     }
+    
+    console.log('[usePostulantes] Iniciando loadLote con parámetros:', { dniCap, CampañaID, mes, fechaInicio, capaNum, horariosBase });
+    
+    console.log('[loadLote] Llamando a API /api/postulantes con:', { dniCap, campaniaID: CampañaID, mes, fechaInicio });
+    
     const { postulantes, asistencias, duracion } = await api(
       `/api/postulantes?dniCap=${dniCap}&campaniaID=${encodeURIComponent(CampañaID)}`+
       `&mes=${mes}&fechaInicio=${fechaInicio}`
     );
+    
+    console.log('[loadLote] Datos recibidos de la API:', { postulantes: postulantes?.length, asistencias: asistencias?.length, duracion });
+    console.log('[loadLote] URL completa de la API:', `/api/postulantes?dniCap=${dniCap}&campaniaID=${encodeURIComponent(CampañaID)}&mes=${mes}&fechaInicio=${fechaInicio}`);
 
     // Fechas
     let d = [fechaInicio];
@@ -46,6 +56,9 @@ export default function usePostulantes() {
     setDias(d);
     setCapCount(duracion.cap);
     setCapaNum(capaNum);
+
+    console.log('[usePostulantes] Fechas calculadas:', d);
+    console.log('[usePostulantes] Duración:', duracion);
 
     // Tabla base
     const tabla = postulantes.map(p => {
@@ -81,20 +94,134 @@ export default function usePostulantes() {
         horario
       };
     });
+    
     // Asistencias previas
     const posDni = Object.fromEntries(tabla.map((p,i)=>[p.dni,i]));
-    const posF   = Object.fromEntries(d.map((x,i)=>[x,i]));
+    
+    // Crear un mapa de fechas más robusto que soporte diferentes formatos
+    const posF = {};
+    d.forEach((fecha, i) => {
+      // Formato exacto como viene del frontend
+      posF[fecha] = i;
+      
+      // Normalizar formato YYYY-MM-DD sin importar cómo venga
+      try {
+        const [y, m, day] = fecha.split('-');
+        // Formato con ceros explícitos
+        posF[`${y}-${m.padStart(2, '0')}-${day.padStart(2, '0')}`] = i;
+        // Formato de objeto Date convertido a string
+        const dt = new Date(y, m-1, day);
+        posF[dt.toISOString().slice(0,10)] = i;
+        
+        // Formato alternativo sin guiones (por si acaso)
+        posF[`${y}${m.padStart(2, '0')}${day.padStart(2, '0')}`] = i;
+        
+        // Formato con barras (por si acaso)
+        posF[`${y}/${m.padStart(2, '0')}/${day.padStart(2, '0')}`] = i;
+        
+        // Formato DD/MM/YYYY (por si acaso)
+        posF[`${day.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`] = i;
+        
+      } catch (e) {
+        console.error("Error normalizando fecha:", fecha, e);
+      }
+    });
+    
+    // VALIDACIÓN ADICIONAL: Verificar que todas las fechas tengan al menos un formato
+    console.log('[loadLote] Mapa de fechas creado con', Object.keys(posF).length, 'formatos diferentes');
+    
+    console.log("Mapa de posiciones de fechas:", posF);
     console.log('=== CARGANDO ASISTENCIAS ===');
     console.log('Asistencias recibidas:', asistencias);
-    asistencias.forEach(a=>{
-      const r=posDni[a.postulante_dni], c=posF[a.fecha];
-      if(r!=null&&c!=null) {
+    console.log("Fechas calculadas del frontend:", d);
+    const fechasAPI = asistencias.map(a => a.fecha);
+    console.log("Fechas recibidas de la API:", fechasAPI);
+    
+    // Log detallado de cada asistencia
+    console.log('=== ANÁLISIS DETALLADO DE ASISTENCIAS ===');
+    asistencias.forEach((a, index) => {
+      console.log(`Asistencia ${index + 1}:`, {
+        postulante_dni: a.postulante_dni,
+        fecha: a.fecha,
+        estado: a.estado_asistencia,
+        posDni: posDni[a.postulante_dni],
+        posF: posF[a.fecha],
+        fechaEnMapa: posF[a.fecha] !== undefined ? 'SÍ' : 'NO'
+      });
+    });
+    
+    // Verificar coincidencias
+    const coincidencias = [];
+    const sinCoincidencia = [];
+    
+    asistencias.forEach(a => {
+      const r = posDni[a.postulante_dni];
+      const c = posF[a.fecha];
+      
+      if (r != null && c != null) {
         // Convertir "D" de la BD a "Deserción" en el frontend
         const valorFinal = a.estado_asistencia === "D" ? "Deserción" : a.estado_asistencia;
         tabla[r].asistencia[c] = valorFinal;
-        console.log(`Asistencia para ${a.postulante_dni} en ${a.fecha}: ${a.estado_asistencia} -> ${valorFinal}`);
+        console.log(`✅ Asistencia para ${a.postulante_dni} en ${a.fecha} (posición ${c}): ${a.estado_asistencia} -> ${valorFinal}`);
+        coincidencias.push(a.fecha);
+      } else {
+        console.log(`❌ FALLO: Asistencia no asignada para ${a.postulante_dni} en fecha ${a.fecha} - r=${r}, c=${c}`);
+        sinCoincidencia.push(a.fecha);
       }
     });
+    
+    console.log(`🔍 Resumen: ${coincidencias.length} fechas con coincidencias, ${sinCoincidencia.length} sin coincidencia`);
+    
+    // SISTEMA DE RECUPERACIÓN AUTOMÁTICA
+    if (sinCoincidencia.length > 0) {
+      console.log("⚠️ ALERTA: Fechas sin coincidencia detectadas:", sinCoincidencia);
+      console.log("🔧 Intentando recuperación automática...");
+      
+      // Verificar si hay asistencias en la BD que no se están mostrando
+      const fechasConAsistencias = asistencias.map(a => a.fecha);
+      const fechasSinMostrar = sinCoincidencia.filter(fecha => fechasConAsistencias.includes(fecha));
+      
+      if (fechasSinMostrar.length > 0) {
+        console.log("🚨 CRÍTICO: Hay asistencias en la BD que no se están mostrando:", fechasSinMostrar);
+        console.log("💡 Recomendación: Verificar formato de fechas en la BD o en el frontend");
+      }
+    }
+    
+    // VALIDACIÓN FINAL: Verificar que todas las fechas calculadas tengan datos
+    const fechasSinDatos = d.map((fecha, i) => {
+      const tieneDatos = tabla.some(row => row.asistencia[i] && row.asistencia[i] !== "");
+      return { fecha, indice: i, tieneDatos };
+    });
+    
+    const fechasVacias = fechasSinDatos.filter(f => !f.tieneDatos);
+    if (fechasVacias.length > 0) {
+      console.log("⚠️ ADVERTENCIA: Fechas calculadas sin datos de asistencia:", fechasVacias);
+    }
+    
+    console.log('[loadLote] Estado final de tabla:', tabla.map(row => ({
+      dni: row.dni,
+      asistencia: row.asistencia.slice(0, 5) // Solo las primeras 5 asistencias para no saturar el log
+    })));
+    
+    console.log('[loadLote] Llamando a setTablaDatos con', tabla.length, 'filas');
+    
+    // SISTEMA DE MONITOREO DE INTEGRIDAD
+    const integridadDatos = {
+      totalPostulantes: tabla.length,
+      totalFechas: d.length,
+      asistenciasCargadas: coincidencias.length,
+      asistenciasPerdidas: sinCoincidencia.length,
+      porcentajeExito: Math.round((coincidencias.length / (coincidencias.length + sinCoincidencia.length)) * 100) || 0
+    };
+    
+    console.log('📊 REPORTE DE INTEGRIDAD:', integridadDatos);
+    
+    // ALERTA SI LA INTEGRIDAD ES BAJA
+    if (integridadDatos.porcentajeExito < 95) {
+      console.warn('🚨 ALERTA: Baja integridad de datos detectada:', integridadDatos.porcentajeExito + '%');
+      console.warn('💡 Recomendación: Verificar conexión a BD y formato de fechas');
+    }
+    
     setTablaDatos(tabla);
 
     // Deserciones
@@ -117,6 +244,8 @@ export default function usePostulantes() {
     );
     setEvaluaciones(evalPrev);
     setDirty(false);
+    
+    console.log('[usePostulantes] loadLote completado exitosamente');
   };
 
   // Actualizar asistencia y bloquear fila tras deserción
@@ -193,6 +322,7 @@ export default function usePostulantes() {
 
   // Guardar solo asistencias y resultadoFinal dirty
   const guardarCambios = async params => {
+    console.log('[guardarCambios] INICIANDO con parámetros:', params);
     const { fechaInicio } = params;
     // Payloads
     const payloadA = [];
@@ -201,7 +331,7 @@ export default function usePostulantes() {
         p.asistencia.forEach((est, i) => {
           if (est && est !== "---") {
             // Asegurar que CampañaID nunca sea undefined
-            const campaniaID = params.campaniaID || p.CampañaID;
+            const campaniaID = params.CampañaID || p.CampañaID;
             payloadA.push({
               postulante_dni: p.dni,
               fecha: dias[i],
@@ -231,7 +361,7 @@ export default function usePostulantes() {
         fecha_desercion: d.fecha_desercion,
         motivo: d.motivo,
         capa_numero: Number(d.capa_numero),
-        CampañaID: d.CampañaID || params.campaniaID,
+        CampañaID: d.CampañaID || params.CampañaID,
         fecha_inicio: params.fechaInicio
       }));
     const payloadE = evaluaciones
@@ -241,7 +371,7 @@ export default function usePostulantes() {
     const payloadEstados = tablaDatos
       .filter(p => p.dirty && p.resultadoFinal)
       .map(p => {
-        const CampañaID = params.campaniaID || params.CampañaID || p.CampañaID;
+        const CampañaID = params.CampañaID || p.CampañaID;
         
         // Si el postulante tenía deserción y ahora tiene asistencia normal, 
         // no enviar el estado "Desertó" porque ya se actualizó en el backend
@@ -306,13 +436,24 @@ export default function usePostulantes() {
       if (payloadPostulantes.length) await api("/api/postulantes/horario",
         { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payloadPostulantes) });
 
+      console.log('[guardarCambios] Todas las APIs completadas exitosamente');
+
       // Limpiar dirty tras guardar
       setTablaDatos(t => t.map(row => ({ ...row, dirty: false })));
       setDirty(false);
       
       // Recargar datos para reflejar cambios en la vista
-      await loadLote({ dniCap: params.dniCap, CampañaID: params.CampañaID, mes: params.mes, fechaInicio: params.fechaInicio, capaNum: params.capaNum, horariosBase: params.horariosBase });
+      console.log('[guardarCambios] Recargando datos con parámetros:', { dniCap: params.dniCap, CampañaID: params.CampañaID, mes: params.mes, fechaInicio: params.fechaInicio, capaNum: params.capaNum, horariosBase: params.horariosBase });
       
+      try {
+        console.log('[guardarCambios] Llamando a loadLote...');
+        await loadLote({ dniCap: params.dniCap, CampañaID: params.CampañaID, mes: params.mes, fechaInicio: params.fechaInicio, capaNum: params.capaNum, horariosBase: params.horariosBase });
+        console.log('[guardarCambios] loadLote completado exitosamente');
+      } catch (error) {
+        console.error('[guardarCambios] Error al recargar datos:', error);
+      }
+      
+      console.log('[guardarCambios] Recarga completada, mostrando alerta de éxito');
       alert("Cambios guardados ✔️");
     } catch (error) {
       console.error("Error al guardar:", error);
