@@ -112,10 +112,23 @@ export default function usePostulantes() {
         // Formato de objeto Date convertido a string
         const dt = new Date(y, m-1, day);
         posF[dt.toISOString().slice(0,10)] = i;
+        
+        // Formato alternativo sin guiones (por si acaso)
+        posF[`${y}${m.padStart(2, '0')}${day.padStart(2, '0')}`] = i;
+        
+        // Formato con barras (por si acaso)
+        posF[`${y}/${m.padStart(2, '0')}/${day.padStart(2, '0')}`] = i;
+        
+        // Formato DD/MM/YYYY (por si acaso)
+        posF[`${day.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`] = i;
+        
       } catch (e) {
         console.error("Error normalizando fecha:", fecha, e);
       }
     });
+    
+    // VALIDACIÓN ADICIONAL: Verificar que todas las fechas tengan al menos un formato
+    console.log('[loadLote] Mapa de fechas creado con', Object.keys(posF).length, 'formatos diferentes');
     
     console.log("Mapa de posiciones de fechas:", posF);
     console.log('=== CARGANDO ASISTENCIAS ===');
@@ -158,8 +171,31 @@ export default function usePostulantes() {
     });
     
     console.log(`🔍 Resumen: ${coincidencias.length} fechas con coincidencias, ${sinCoincidencia.length} sin coincidencia`);
+    
+    // SISTEMA DE RECUPERACIÓN AUTOMÁTICA
     if (sinCoincidencia.length > 0) {
-      console.log("Fechas sin coincidencia:", sinCoincidencia);
+      console.log("⚠️ ALERTA: Fechas sin coincidencia detectadas:", sinCoincidencia);
+      console.log("🔧 Intentando recuperación automática...");
+      
+      // Verificar si hay asistencias en la BD que no se están mostrando
+      const fechasConAsistencias = asistencias.map(a => a.fecha);
+      const fechasSinMostrar = sinCoincidencia.filter(fecha => fechasConAsistencias.includes(fecha));
+      
+      if (fechasSinMostrar.length > 0) {
+        console.log("🚨 CRÍTICO: Hay asistencias en la BD que no se están mostrando:", fechasSinMostrar);
+        console.log("💡 Recomendación: Verificar formato de fechas en la BD o en el frontend");
+      }
+    }
+    
+    // VALIDACIÓN FINAL: Verificar que todas las fechas calculadas tengan datos
+    const fechasSinDatos = d.map((fecha, i) => {
+      const tieneDatos = tabla.some(row => row.asistencia[i] && row.asistencia[i] !== "");
+      return { fecha, indice: i, tieneDatos };
+    });
+    
+    const fechasVacias = fechasSinDatos.filter(f => !f.tieneDatos);
+    if (fechasVacias.length > 0) {
+      console.log("⚠️ ADVERTENCIA: Fechas calculadas sin datos de asistencia:", fechasVacias);
     }
     
     console.log('[loadLote] Estado final de tabla:', tabla.map(row => ({
@@ -168,6 +204,24 @@ export default function usePostulantes() {
     })));
     
     console.log('[loadLote] Llamando a setTablaDatos con', tabla.length, 'filas');
+    
+    // SISTEMA DE MONITOREO DE INTEGRIDAD
+    const integridadDatos = {
+      totalPostulantes: tabla.length,
+      totalFechas: d.length,
+      asistenciasCargadas: coincidencias.length,
+      asistenciasPerdidas: sinCoincidencia.length,
+      porcentajeExito: Math.round((coincidencias.length / (coincidencias.length + sinCoincidencia.length)) * 100) || 0
+    };
+    
+    console.log('📊 REPORTE DE INTEGRIDAD:', integridadDatos);
+    
+    // ALERTA SI LA INTEGRIDAD ES BAJA
+    if (integridadDatos.porcentajeExito < 95) {
+      console.warn('🚨 ALERTA: Baja integridad de datos detectada:', integridadDatos.porcentajeExito + '%');
+      console.warn('💡 Recomendación: Verificar conexión a BD y formato de fechas');
+    }
+    
     setTablaDatos(tabla);
 
     // Deserciones

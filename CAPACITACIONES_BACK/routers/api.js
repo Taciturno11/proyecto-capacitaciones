@@ -180,6 +180,7 @@ router.get('/postulantes', authMiddleware, async (req, res) => {
           AND FORMAT(pf.FechaInicio,'yyyy-MM-dd') = @fechaIni
       `);
 
+    // CONSULTA PRINCIPAL - Obtener asistencias desde fecha de inicio
     const asis = await R()
       .input("dniCap",   sql.VarChar(20),  dniCap)
       .input("camp",     sql.Int, Number(campaniaID))
@@ -198,11 +199,55 @@ router.get('/postulantes', authMiddleware, async (req, res) => {
           AND FORMAT(p.FechaInicio,'yyyy-MM-dd') = @fechaIni
       `);
 
+    // CONSULTA DE RESPALDO - Obtener asistencias por mes como fallback
+    const asisFallback = await R()
+      .input("dniCap",   sql.VarChar(20),  dniCap)
+      .input("camp",     sql.Int, Number(campaniaID))
+      .input("prefijo",  sql.VarChar(7),   mes)
+      .input("fechaIni", sql.VarChar(10),  fechaInicio)
+      .query(`
+        SELECT a.postulante_dni,
+               CONVERT(char(10), a.fecha, 23) AS fecha,
+               a.estado_asistencia
+        FROM Asistencia_Formacion a
+        JOIN Postulantes_En_Formacion p ON p.DNI = a.postulante_dni
+        WHERE p.DNI_Capacitador       = @dniCap
+          AND p.CampañaID             = @camp
+          AND a.CampañaID             = @camp
+          AND FORMAT(a.fecha,'yyyy-MM') = @prefijo
+          AND FORMAT(p.FechaInicio,'yyyy-MM-dd') = @fechaIni
+      `);
+
+    // ESTRATEGIA DE FUSIÓN: Usar consulta principal, pero si falla, usar fallback
+    let asistenciasFinales = asis.recordset;
+    
+    // Si la consulta principal no devuelve suficientes datos, combinar con fallback
+    if (asis.recordset.length === 0 && asisFallback.recordset.length > 0) {
+      console.log(`[API] Consulta principal sin resultados, usando fallback por mes para ${dniCap}`);
+      asistenciasFinales = asisFallback.recordset;
+    } else if (asis.recordset.length > 0 && asisFallback.recordset.length > asis.recordset.length) {
+      // Si el fallback tiene más datos, combinar ambos (eliminando duplicados)
+      console.log(`[API] Combinando consultas para obtener máximo de asistencias para ${dniCap}`);
+      const asistenciasCombinadas = [...asis.recordset];
+      const fechasExistentes = new Set(asis.recordset.map(a => a.fecha));
+      
+      asisFallback.recordset.forEach(a => {
+        if (!fechasExistentes.has(a.fecha)) {
+          asistenciasCombinadas.push(a);
+          fechasExistentes.add(a.fecha);
+        }
+      });
+      
+      asistenciasFinales = asistenciasCombinadas;
+    }
+
+    console.log(`[API] Asistencias finales para ${dniCap}: ${asistenciasFinales.length} registros`);
+
     // Obtener el nombre de la campaña del primer postulante (si existe)
     const nombreCampania = post.recordset[0]?.NombreCampaña || '';
     res.json({
       postulantes : post.recordset,
-      asistencias : asis.recordset,
+      asistencias : asistenciasFinales,
       duracion    : obtenerDuracion(nombreCampania)
     });
   } catch (e) { console.error(e); res.sendStatus(500); }
