@@ -194,7 +194,7 @@ router.get('/postulantes', authMiddleware, async (req, res) => {
         WHERE p.DNI_Capacitador       = @dniCap
           AND p.CampañaID             = @camp
           AND a.CampañaID             = @camp
-          AND FORMAT(a.fecha,'yyyy-MM')       = @prefijo
+          AND a.fecha >= @fechaIni
           AND FORMAT(p.FechaInicio,'yyyy-MM-dd') = @fechaIni
       `);
 
