@@ -3,4 +3,53 @@
 @tailwind utilities;
 
 
-/*  Sin bloque @apply — evitamos el error px-2  */
+  /*  Sin bloque @apply — evitamos el error px-2  */
+
+/* Estilos para scroll horizontal en tablas */
+.table-container {
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e0 #f7fafc;
+  max-width: 100%;
+  width: 100%;
+}
+
+.table-container::-webkit-scrollbar {
+  height: 8px;
+}
+
+.table-container::-webkit-scrollbar-track {
+  background: #f7fafc;
+  border-radius: 4px;
+}
+
+.table-container::-webkit-scrollbar-thumb {
+  background: #cbd5e0;
+  border-radius: 4px;
+}
+
+.table-container::-webkit-scrollbar-thumb:hover {
+  background: #a0aec0;
+}
+
+/* Estilos para la tabla con ancho fijo */
+.fixed-table {
+  min-width: 1800px;
+  table-layout: fixed;
+}
+
+/* Estilos para columnas con ancho fijo */
+.fixed-column {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Forzar scroll horizontal */
+.force-horizontal-scroll {
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  white-space: nowrap;
+}

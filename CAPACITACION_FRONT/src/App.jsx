@@ -891,7 +891,7 @@ export default function App() {
         </div>
       </div>
       {/* Contenido principal compacto */}
-      <div className="w-full flex flex-col gap-1 items-start justify-start p-0 m-0 overflow-hidden">
+      <div className="flex flex-col gap-1 items-start justify-start p-0 m-0">
         <div className="flex flex-wrap items-center gap-3 mb-1 px-4">
           {capas.length > 1 && capaSeleccionada && (
             <>
@@ -939,25 +939,29 @@ export default function App() {
         {sinDatos && (
           <div className="text-center text-gray-500 text-base mt-6">No tienes datos de asistencias para mostrar.</div>
         )}
-        {!sinDatos && capaSeleccionada && (
-          <div className="flex flex-col gap-2">
-            {/* Contenedor de asistencias o evaluaciones */}
-            <div className="flex flex-row gap-4 items-start w-full">
-              <div
-                className="flex-1 rounded-lg p-2 bg-transparent"
-                style={{}}
-              >
-                {vista === "asist" && <AsistenciasTable
-                  postCtx={post}
-                  compact={false}
-                  dniCap={dniCap}
-                  CampañaID={capaSeleccionada?.CampañaID}
-                  mes={capaSeleccionada?.fechaInicio?.slice(0, 7)}
-                  fechaInicio={capaSeleccionada?.fechaInicio}
-                  capaNum={capaSeleccionada?.capa}
-                  horariosBase={horariosBase}
-                  jornadaFiltro={jornadaFiltro}
-                />}
+          {!sinDatos && capaSeleccionada && (
+            <div className="flex flex-col gap-2">
+              {/* Contenedor de asistencias o evaluaciones */}
+              <div className="flex flex-row gap-4 items-start">
+                <div
+                  className="flex-1 rounded-lg p-2 bg-transparent"
+                  style={{}}
+                >
+                  {vista === "asist" && (
+                    <div className="table-container">
+                      <AsistenciasTable
+                        postCtx={post}
+                        compact={false}
+                        dniCap={dniCap}
+                        CampañaID={capaSeleccionada?.CampañaID}
+                        mes={capaSeleccionada?.fechaInicio?.slice(0, 7)}
+                        fechaInicio={capaSeleccionada?.fechaInicio}
+                        capaNum={capaSeleccionada?.capa}
+                        horariosBase={horariosBase}
+                        jornadaFiltro={jornadaFiltro}
+                      />
+                    </div>
+                  )}
                 {vista === "eval" && <EvaluacionesTable postCtx={post} compact />}
                 {(vista === "asist" || vista === "eval") && (
                   <div className="flex items-center gap-1 mt-1 mb-2 ml-2">
@@ -978,7 +982,7 @@ export default function App() {
               </div>
             </div>
             {/* Tabla de deserciones siempre debajo */}
-            <div className="inline-block rounded-lg p-2 bg-transparent w-full">
+            <div className="inline-block rounded-lg p-2 bg-transparent">
               <DesercionesTable postCtx={post} />
             </div>
           </div>
