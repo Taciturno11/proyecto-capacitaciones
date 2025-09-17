@@ -150,19 +150,34 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, CampañaID,
     setMotivo("");
   };
 
+  // Determinar si necesitamos scroll horizontal (más de 15 días)
+  const necesitaScroll = dias.length > 15;
+  
   return (
-    <div className="rounded-xl w-full p-2 bg-transparent shadow-md relative">
-      <div className="w-full overflow-x-auto">
+    <div className="rounded-xl p-2 bg-transparent shadow-md relative">
+      {/* CONTENEDOR CON SCROLL HORIZONTAL CONDICIONAL */}
+      <div 
+        className={necesitaScroll ? "overflow-x-auto force-horizontal-scroll" : ""} 
+        style={{ maxWidth: '100%', width: '100%' }}
+      >
         <table
-          className="w-full text-sm rounded-xl overflow-hidden bg-white/80"
-          style={{ tableLayout: 'fixed' }}
+          className="text-sm rounded-xl overflow-hidden bg-white/80 fixed-table"
+          style={{ 
+            tableLayout: 'fixed',
+            minWidth: necesitaScroll ? '2000px' : 'auto', // Ancho dinámico
+            width: necesitaScroll ? '2000px' : '100%' // Ancho dinámico
+          }}
         >
         <thead>
           <tr>
-            {/* Nombre y DNI con fondo beige claro y texto centrado */}
-            <th rowSpan={2} className={`${thBase} bg-[#f5ede6] text-[#3d3d3d] text-center font-semibold border-b border-[#e0d7ce] min-w-0 rounded-tl-xl`}>Nombre</th>
+            {/* Nombre completo con ancho fijo */}
+            <th rowSpan={2} className={`${thBase} bg-[#f5ede6] text-[#3d3d3d] text-center font-semibold border-b border-[#e0d7ce] ${necesitaScroll ? 'min-w-[200px] w-[200px]' : 'min-w-[140px] w-[140px]'} rounded-tl-xl`}>
+              <div className={!necesitaScroll ? 'text-xs' : ''}>
+                Nombre Completo
+              </div>
+            </th>
             <th rowSpan={2} className={`${thBase} bg-[#f5ede6] text-[#3d3d3d] text-center font-semibold border-b border-[#e0d7ce] min-w-0`}>DNI</th>
-            <th rowSpan={2} className={`${thBase} bg-[#f5ede6] text-[#3d3d3d] text-center font-semibold border-b border-[#e0d7ce] w-[180px] min-w-[180px]`}>Horario</th>
+            <th rowSpan={2} className={`${thBase} bg-[#f5ede6] text-[#3d3d3d] text-center font-semibold border-b border-[#e0d7ce] ${necesitaScroll ? 'w-[180px] min-w-[180px]' : 'w-[180px] min-w-[180px]'}`}>Horario</th>
             {/* Quitar columnas Campaña, Modalidad y Jornada */}
             {/* <th rowSpan={2} className={`${thBase} bg-[#f5ede6] text-[#3d3d3d] text-center font-semibold border-b border-[#e0d7ce] min-w-[120px]`}>Campaña</th> */}
             {/* <th rowSpan={2} className={`${thBase} bg-[#f5ede6] text-[#3d3d3d] text-center font-semibold border-b border-[#e0d7ce] min-w-[120px]`}>Modalidad</th> */}
@@ -178,7 +193,7 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, CampañaID,
                 – OJT +
               </th>
             )}
-            <th rowSpan={2} className={`${thBase} bg-[#a6d4f2] text-[#1e3a5c] text-center font-semibold border-b border-[#e0d7ce] min-w-0`}>Resultado Final</th>
+            <th rowSpan={2} className={`${thBase} bg-[#a6d4f2] text-[#1e3a5c] text-center font-semibold border-b border-[#e0d7ce] ${necesitaScroll ? 'min-w-[150px] w-[150px]' : 'min-w-[120px] w-[120px]'}`}>Resultado Final</th>
           </tr>
           <tr>
             {/* Días de capacitación con fondo amarillo, OJT con verde */}
@@ -186,11 +201,14 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, CampañaID,
               <th
                 key={f}
                 className={
-                  `${compact ? "px-2 py-1 min-w-[105px]" : "px-2 py-1 min-w-[105px]"} text-[#3d3d3d] border-b border-[#e0d7ce] text-center ` +
+                  `${compact ? "px-2 py-1" : "px-2 py-1"} ${necesitaScroll ? "min-w-[140px]" : "min-w-[80px]"} text-[#3d3d3d] border-b border-[#e0d7ce] text-center ` +
                   (i < capCount ? "bg-[#ffe5b4]" : "bg-[#c8ecd9]")
                 }
+                style={{ width: necesitaScroll ? '140px' : '80px' }} // Ancho dinámico para cada día
               >
-                Día {i + 1}<br />{f}
+                <div className="text-xs">
+                  Día {i + 1}<br />{f}
+                </div>
               </th>
             ))}
           </tr>
@@ -213,9 +231,14 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, CampañaID,
                     : "bg-[#f9f6f2]/80") + ' ' + dirtyClass
                 }
               >
-                <td className={`${tdBase} text-left min-w-0 truncate`} title={p.nombre}>{p.nombre}</td>
-                <td className={`${tdBase} text-center min-w-0`}>{p.dni}</td>
-                <td className={`${tdBase} text-center w-[180px] min-w-[180px]`}>
+                    {/* Nombre completo con ancho fijo */}
+                    <td className={`${tdBase} text-left ${necesitaScroll ? 'min-w-[200px] w-[200px]' : 'min-w-[140px] w-[140px]'}`} title={p.nombre}>
+                      <div className={`whitespace-normal break-words ${!necesitaScroll ? 'text-xs' : ''}`}>
+                        {p.nombre}
+                      </div>
+                    </td>
+                    <td className={`${tdBase} text-center min-w-0`}>{p.dni}</td>
+                    <td className={`${tdBase} text-center ${necesitaScroll ? 'w-[180px] min-w-[180px]' : 'w-[180px] min-w-[180px]'}`}>
                   <div className="flex flex-row items-center gap-1 whitespace-nowrap">
                     {/* Select de Turno */}
                     <select
@@ -229,9 +252,9 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, CampañaID,
                           return copy;
                         });
                       }}
-                      className="bg-white/80 border border-gray-300 rounded-lg shadow-sm px-0.5 py-0 text-[11px] h-6 min-w-[22px] focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition outline-none text-center"
+                      className={`bg-white/80 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition outline-none text-center ${necesitaScroll ? 'px-0.5 py-0 text-[11px] h-6 min-w-[22px]' : 'px-2 py-1 text-xs w-full'}`}
                     >
-                      <option value="">T</option>
+                      <option value="">{necesitaScroll ? 'T' : 'Seleccionar Turno'}</option>
                       <option value="Mañana">Mañana</option>
                       <option value="Tarde">Tarde</option>
                     </select>
@@ -247,9 +270,9 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, CampañaID,
                           return copy;
                         });
                       }}
-                      className="bg-white/80 border border-gray-300 rounded-lg shadow-sm px-0.5 py-0 text-[11px] h-6 w-full focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition outline-none text-center"
+                      className={`bg-white/80 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition outline-none text-center ${necesitaScroll ? 'px-0.5 py-0 text-[11px] h-6 w-full' : 'px-2 py-1 text-xs w-full'}`}
                     >
-                      <option value="">H</option>
+                      <option value="">{necesitaScroll ? 'H' : 'Seleccionar Horario'}</option>
                       {getHorariosFiltrados(p.NombreModalidad, p.NombreJornada, p.turno).map(h => (
                         <option key={h.label} value={h.label}>
                           {h.rango}
@@ -281,7 +304,7 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, CampañaID,
                     popoverAnchorRefs.current[cellKey] = React.createRef();
                   }
                   return (
-                    <td key={c} className={`${tdBase} min-w-0 ${darkBg}`} style={{ position: 'relative' }}>
+                    <td key={c} className={`${tdBase} ${necesitaScroll ? 'min-w-[140px]' : 'min-w-[80px]'} ${darkBg}`} style={{ position: 'relative', width: necesitaScroll ? '140px' : '80px' }}>
                       <select
                         ref={popoverAnchorRefs.current[cellKey]}
                         value={valor}
@@ -331,7 +354,7 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, CampañaID,
                   );
                 })}
                 {/* Resultado Final */}
-                <td className={`${tdBase} text-center min-w-0 ${tieneDesercion ? 'bg-gray-400 text-[#3d3d3d]' : ''}`}>
+                <td className={`${tdBase} text-center ${necesitaScroll ? 'min-w-[150px] w-[150px]' : 'min-w-[120px] w-[120px]'} ${tieneDesercion ? 'bg-gray-400 text-[#3d3d3d]' : ''}`}>
                   <select
                     className={`${selectBase} rounded text-sm ${tieneDesercion ? 'bg-gray-400 text-[#3d3d3d] cursor-not-allowed' : ''}`}
                     value={p.resultadoFinal || ''}
