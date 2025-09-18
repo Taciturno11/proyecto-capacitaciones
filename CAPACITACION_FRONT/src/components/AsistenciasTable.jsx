@@ -270,7 +270,7 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, CampañaID,
                     <td className={`${tdBase} text-center min-w-0`}>{p.dni}</td>
                     <td className={`${tdBase} text-center ${necesitaScroll ? 'w-[180px] min-w-[180px]' : 'w-[180px] min-w-[180px]'}`}>
                   <div className="flex flex-row items-center gap-1 whitespace-nowrap">
-                    {/* Select de Turno */}
+                    {/* Select de Turno - Más compacto */}
                     <select
                       value={p.turno || ''}
                       onChange={e => {
@@ -282,13 +282,13 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, CampañaID,
                           return copy;
                         });
                       }}
-                      className={`bg-white/80 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition outline-none text-center ${necesitaScroll ? 'px-0.5 py-0 text-[11px] h-6 min-w-[22px]' : 'px-2 py-1 text-xs w-full'}`}
+                      className={`bg-white/80 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition outline-none text-center ${necesitaScroll ? 'px-1 py-0 text-[10px] h-6 min-w-[35px]' : 'px-1 py-1 text-xs min-w-[50px]'}`}
                     >
-                      <option value="">{necesitaScroll ? 'T' : 'Seleccionar'}</option>
+                      <option value="">{necesitaScroll ? 'T' : 'Sel'}</option>
                       <option value="Mañana">a.m</option>
                       <option value="Tarde">p.m</option>
                     </select>
-                    {/* Select de Horario filtrado */}
+                    {/* Select de Horario filtrado - Ancho reducido */}
                     <select
                       value={p.horario || ''}
                       onChange={e => {
@@ -300,7 +300,7 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, CampañaID,
                           return copy;
                         });
                       }}
-                      className={`bg-white/80 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition outline-none text-center ${necesitaScroll ? 'px-0.5 py-0 text-[11px] h-6 w-full' : 'px-2 py-1 text-xs w-full'}`}
+                      className={`bg-white/80 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition outline-none text-center ${necesitaScroll ? 'px-1 py-0 text-[10px] h-6 w-[120px]' : 'px-2 py-1 text-xs w-[110px]'}`}
                     >
                       <option value="">{necesitaScroll ? 'H' : 'Seleccionar Horario'}</option>
                       {getHorariosFiltrados(p.NombreModalidad, p.NombreJornada, p.turno).map(h => (
