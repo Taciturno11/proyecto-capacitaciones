@@ -1,0 +1,180 @@
+[33mcommit 734ddc226429b44c9d83f8bfd8e16f6920dd074c[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Merge: d97c7e6 3e57536
+Author: Taciturno11 <martinsitonauca@gmail.com>
+Date:   Wed Sep 3 10:48:27 2025 -0500
+
+    Merge branch 'main' of https://github.com/Taciturno11/proyecto-capacitaciones
+
+[33mcommit 3e575360ff8330ee91a5849f0732bb7361a1281c[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: Taciturno11 <martinsitonauca@gmail.com>
+Date:   Wed Sep 3 10:48:29 2025 -0500
+
+    Corregido 2.0
+
+[33mcommit 8802c29d95029da44d5bd2ba9dbaa967d6ecd1ba[m
+Author: Taciturno11 <martinsitonauca@gmail.com>
+Date:   Wed Sep 3 10:46:14 2025 -0500
+
+    Corregido
+
+[33mcommit d97c7e6d986cbe00e39cb320d3f282256db6a201[m
+Author: Taciturno11 <martinsitonauca@gmail.com>
+Date:   Sat Aug 9 15:49:30 2025 -0500
+
+    Nuevos cambios
+
+[33mcommit 1b0eac9e3da9b1e6999abd0702f09d0d7220a8f6[m
+Author: Taciturno11 <martinsitonauca@gmail.com>
+Date:   Fri Aug 8 01:11:58 2025 -0500
+
+    Prototipo:Falta Mejorar datos del DASHBOARD
+
+[33mcommit b6d73387fa863b8690adc1f844f8887bf98ce509[m
+Author: Taciturno11 <martinsitonauca@gmail.com>
+Date:   Wed Jul 30 01:24:16 2025 -0500
+
+    Corecciones Dashboard Bajas, Dias
+
+[33mcommit b7238037ee28046996a3f8ab1ec4e2ed22d0a42d[m
+Author: Taciturno11 <martinsitonauca@gmail.com>
+Date:   Tue Jul 29 22:08:52 2025 -0500
+
+    Postulantes varias campañas/solucionado
+
+[33mcommit 1d719f0e54123bd9ff7da90f7e05200d7500fbc6[m
+Author: Taciturno11 <martinsitonauca@gmail.com>
+Date:   Tue Jul 29 03:25:56 2025 -0500
+
+    Filtros Grafico Barras Pastel
+
+[33mcommit 591d70c18abd3cee9bf6797d9b70bf570ffc51ab[m
+Author: unknown <martinsitonauca@gmail.com>
+Date:   Fri Jul 25 15:06:53 2025 -0500
+
+    Falta corregir dashboard, Reparar BUGS
+
+[33mcommit d9d691b4e885a32d8e8b76b9e946e37064b89c8e[m
+Author: unknown <martinsitonauca@gmail.com>
+Date:   Fri Jul 25 13:16:06 2025 -0500
+
+    Avance dashboard Mafer
+
+[33mcommit 17b35d4cd123308bd75cb649ccf46081190a0665[m
+Author: Taciturno11 <martinsitonauca@gmail.com>
+Date:   Fri Jul 25 08:01:08 2025 -0500
+
+    Horarios y Jornadas
+
+[33mcommit e3d4e98b51db9e379221d8934e8dbc050ac8d8da[m
+Author: Taciturno11 <martinsitonauca@gmail.com>
+Date:   Thu Jul 24 04:15:36 2025 -0500
+
+    Finalizado Columna Horario
+
+[33mcommit 41146e091c7ce8bbc47f0598e843a26ff60e5109[m
+Author: unknown <martinsitonauca@gmail.com>
+Date:   Tue Jul 22 14:07:20 2025 -0500
+
+    Nueva estetica + mafer
+
+[33mcommit 7ca3baa0d92f47fe668e316cf20f2000cb8ebe95[m
+Author: Taciturno11 <martinsitonauca@gmail.com>
+Date:   Tue Jul 22 02:26:43 2025 -0500
+
+    Tienda y crosselling
+
+[33mcommit 323caa958db8cc470cc991337b614d4ecdd41bb0[m
+Author: Taciturno11 <martinsitonauca@gmail.com>
+Date:   Mon Jul 21 20:14:58 2025 -0500
+
+    Tienda Ropa
+
+[33mcommit fe3a037967c842abca3cde20894524d6001195b6[m
+Author: Taciturno11 <martinsitonauca@gmail.com>
+Date:   Mon Jul 21 15:48:05 2025 -0500
+
+    Carga Imagen Solucionado
+
+[33mcommit 20674fb0660ced2f33e981dce452c923f62208d2[m
+Author: Taciturno11 <martinsitonauca@gmail.com>
+Date:   Fri Jul 18 01:52:30 2025 -0500
+
+    TIENDA PROTOTIPO
+
+[33mcommit 2c7c3654b7d346688a68485d8d830d64a0aee880[m
+Author: Taciturno11 <martinsitonauca@gmail.com>
+Date:   Thu Jul 17 20:51:42 2025 -0500
+
+    Avatar/cargar Foto
+
+[33mcommit dbe9e624b440f3623f73161db7eeda4232707ed4[m
+Author: Taciturno11 <martinsitonauca@gmail.com>
+Date:   Thu Jul 17 09:01:46 2025 -0500
+
+    Version Normalizada
+
+[33mcommit 995c0e240933d39a6abed462af61912b6630ce7b[m
+Author: Taciturno11 <martinsitonauca@gmail.com>
+Date:   Thu Jul 17 06:18:30 2025 -0500
+
+    Version - Migracion
+
+[33mcommit 68e0d2882ae2f3141fe48b7df071d9a554a8a4b8[m
+Author: unknown <martinsitonauca@gmail.com>
+Date:   Wed Jul 16 10:41:43 2025 -0500
+
+    Ultima version
+
+[33mcommit 11b994778685c0281771867d36ff7c2ad42e848c[m
+Author: Taciturno11 <martinsitonauca@gmail.com>
+Date:   Tue Jul 15 07:11:58 2025 -0500
+
+    Fix: historial de deserciones por campaña y capa, y restricción UNIQUE en backend
+
+[33mcommit 495ea238e7b3aa2f4608c4c2171e58493d4a73d1[m
+Author: Taciturno11 <martinsitonauca@gmail.com>
+Date:   Mon Jul 14 11:45:57 2025 -0500
+
+    Version Beta
+
+[33mcommit b72612271a4b04f0e5f89382a7d277a109c87f48[m
+Author: Taciturno11 <martinsitonauca@gmail.com>
+Date:   Mon Jul 14 01:14:37 2025 -0500
+
+    Falta_Vista_Mafer
+
+[33mcommit 27a36f9639c9ecd6611c87704ed14eada19b44ff[m
+Author: Taciturno11 <martinsitonauca@gmail.com>
+Date:   Sun Jul 13 14:49:56 2025 -0500
+
+    FINALIZADOO
+
+[33mcommit 2abdf502ac6cd84c52c7d0766eab2ec4495ae6fd[m
+Author: unknown <martinsitonauca@gmail.com>
+Date:   Sat Jul 12 21:00:07 2025 -0500
+
+    Nuevo avance
+
+[33mcommit df1b1a221322ba84364565997488d25059a54ae9[m
+Author: Martin Nauca <martinsitonauca@gmail.com>
+Date:   Fri Jul 11 14:36:42 2025 -0500
+
+    Mejora de estetica
+
+[33mcommit b23cd0d52d77448dc7fadaa4fb57c8bab0c7e222[m
+Author: Taciturno11 <martinsitonauca@gmail.com>
+Date:   Fri Jul 11 04:07:09 2025 -0500
+
+    Agrega carpetas como directorios normales
+
+[33mcommit dc0f44431a45c8c1495259278eaeb6bd25337667[m
+Author: Taciturno11 <martinsitonauca@gmail.com>
+Date:   Fri Jul 11 04:06:56 2025 -0500
+
+    Elimina submódulos antiguos
+
+[33mcommit f573785f65232aceb48b0992b9f729becaea41f8[m
+Author: Taciturno11 <martinsitonauca@gmail.com>
+Date:   Fri Jul 11 03:52:10 2025 -0500
+
+    Pagina Capacitaciones
