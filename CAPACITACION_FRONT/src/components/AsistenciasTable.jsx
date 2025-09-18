@@ -60,6 +60,36 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, CampañaID,
     );
   }
 
+  // NUEVA FUNCIONALIDAD: Ordenar deserciones al final
+  // Separar activos y deserciones
+  const activos = postulantesFiltrados.filter(p => {
+    const idxDesercion = p.asistencia.findIndex(est => est === "Deserción");
+    return idxDesercion === -1; // No tiene deserción
+  });
+
+  const deserciones = postulantesFiltrados.filter(p => {
+    const idxDesercion = p.asistencia.findIndex(est => est === "Deserción");
+    return idxDesercion !== -1; // Tiene deserción
+  });
+
+  // Ordenar deserciones por fecha de deserción (más recientes al final)
+  const desercionesOrdenadas = deserciones.sort((a, b) => {
+    const fechaA = a.asistencia.findIndex(est => est === "Deserción");
+    const fechaB = b.asistencia.findIndex(est => est === "Deserción");
+    
+    // Si ambas tienen deserción, ordenar por fecha de deserción
+    if (fechaA !== -1 && fechaB !== -1) {
+      const fechaDesercionA = dias[fechaA];
+      const fechaDesercionB = dias[fechaB];
+      return new Date(fechaDesercionA) - new Date(fechaDesercionB);
+    }
+    
+    return 0;
+  });
+
+  // Combinar: activos primero, deserciones al final
+  postulantesFiltrados = [...activos, ...desercionesOrdenadas];
+
   // Mapeo de Jornada para coincidir con los nombres de grupo (para los selectores)
   const jornadaLabelMap = {
     'FullTime': 'Full Time',
@@ -254,9 +284,9 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, CampañaID,
                       }}
                       className={`bg-white/80 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition outline-none text-center ${necesitaScroll ? 'px-0.5 py-0 text-[11px] h-6 min-w-[22px]' : 'px-2 py-1 text-xs w-full'}`}
                     >
-                      <option value="">{necesitaScroll ? 'T' : 'Seleccionar Turno'}</option>
-                      <option value="Mañana">Mañana</option>
-                      <option value="Tarde">Tarde</option>
+                      <option value="">{necesitaScroll ? 'T' : 'Seleccionar'}</option>
+                      <option value="Mañana">a.m</option>
+                      <option value="Tarde">p.m</option>
                     </select>
                     {/* Select de Horario filtrado */}
                     <select

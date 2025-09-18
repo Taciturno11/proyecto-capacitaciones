@@ -203,7 +203,10 @@ export default function usePostulantes() {
       asistencia: row.asistencia.slice(0, 5) // Solo las primeras 5 asistencias para no saturar el log
     })));
     
-    console.log('[loadLote] Llamando a setTablaDatos con', tabla.length, 'filas');
+    // NUEVA FUNCIONALIDAD: Aplicar ordenamiento automático (activos primero, deserciones al final)
+    const tablaOrdenada = ordenarTablaConDesercionesAlFinal(tabla, d);
+    
+    console.log('[loadLote] Llamando a setTablaDatos con', tablaOrdenada.length, 'filas (ordenadas)');
     
     // SISTEMA DE MONITOREO DE INTEGRIDAD
     const integridadDatos = {
@@ -222,7 +225,7 @@ export default function usePostulantes() {
       console.warn('💡 Recomendación: Verificar conexión a BD y formato de fechas');
     }
     
-    setTablaDatos(tabla);
+    setTablaDatos(tablaOrdenada);
 
     // Deserciones
     if (dniCap && CampañaID && mes && capaNum) {
@@ -467,7 +470,7 @@ export default function usePostulantes() {
   return {
     dias, capCount, tablaDatos, evaluaciones, deserciones, dirty,
     loadLote, setAsistencia, setNota, setDesMotivo, guardarCambios,
-    refreshOJT, downloadExcel,
+    refreshOJT, downloadExcel, setResultadoFinal,
     setTablaDatos // <-- AGREGADO para exponer el setter
   };
 }
@@ -476,4 +479,36 @@ export default function usePostulantes() {
 function armarNombreGrupo(p) {
   // Se asume que el select de horario guarda el nombre exacto del grupo (ej: 'Full Time Mañana2 (Desc. Dom)')
   return p.horario || '';
+}
+
+// NUEVA FUNCIÓN: Ordenar tabla con deserciones al final
+function ordenarTablaConDesercionesAlFinal(tabla, dias) {
+  // Separar activos y deserciones
+  const activos = tabla.filter(p => {
+    const idxDesercion = p.asistencia.findIndex(est => est === "Deserción");
+    return idxDesercion === -1; // No tiene deserción
+  });
+
+  const deserciones = tabla.filter(p => {
+    const idxDesercion = p.asistencia.findIndex(est => est === "Deserción");
+    return idxDesercion !== -1; // Tiene deserción
+  });
+
+  // Ordenar deserciones por fecha de deserción (más recientes al final)
+  const desercionesOrdenadas = deserciones.sort((a, b) => {
+    const fechaA = a.asistencia.findIndex(est => est === "Deserción");
+    const fechaB = b.asistencia.findIndex(est => est === "Deserción");
+    
+    // Si ambas tienen deserción, ordenar por fecha de deserción
+    if (fechaA !== -1 && fechaB !== -1) {
+      const fechaDesercionA = dias[fechaA];
+      const fechaDesercionB = dias[fechaB];
+      return new Date(fechaDesercionA) - new Date(fechaDesercionB);
+    }
+    
+    return 0;
+  });
+
+  // Combinar: activos primero, deserciones al final
+  return [...activos, ...desercionesOrdenadas];
 }
