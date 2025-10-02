@@ -241,10 +241,12 @@ export default function usePostulantes() {
     }
 
     // Evaluaciones
+    console.log('[loadLote] Cargando evaluaciones con parámetros:', { dniCap, campania: CampañaID, mes, fechaInicio });
     const evalPrev = await api(
-      `/api/evaluaciones?dniCap=${dniCap}&campaniaID=${encodeURIComponent(CampañaID)}`+
+      `/api/evaluaciones?dniCap=${dniCap}&campania=${encodeURIComponent(CampañaID)}`+
       `&mes=${mes}&fechaInicio=${fechaInicio}`
     );
+    console.log('[loadLote] Evaluaciones recibidas:', evalPrev);
     setEvaluaciones(evalPrev);
     setDirty(false);
     

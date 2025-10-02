@@ -427,10 +427,11 @@ router.post('/deserciones/bulk', authMiddleware, async (req, res) => {
 router.get('/evaluaciones', authMiddleware, async (req, res) => {
   const dniCap = req.user.dni;
   const { campania, mes, fechaInicio } = req.query;
+  console.log('[API] GET /evaluaciones - Parámetros recibidos:', { dniCap, campania, mes, fechaInicio });
   try {
     const { recordset } = await R()
       .input("dniCap",      sql.VarChar(20),  dniCap)
-      .input("camp",        sql.VarChar(100), campania)
+      .input("camp",        sql.Int,          Number(campania))
       .input("prefijo",     sql.VarChar(7),   mes)
       .input("fechaInicio", sql.VarChar(10),  fechaInicio)
       .query(`
@@ -445,6 +446,8 @@ router.get('/evaluaciones', authMiddleware, async (req, res) => {
           AND FORMAT(p.FechaInicio,'yyyy-MM-dd') = @fechaInicio
         ORDER BY e.fecha_evaluacion
       `);
+    console.log('[API] GET /evaluaciones - Resultados encontrados:', recordset.length, 'evaluaciones');
+    console.log('[API] GET /evaluaciones - Primeras 3 evaluaciones:', recordset.slice(0, 3));
     res.json(recordset);
   } catch (e) { console.error(e); res.sendStatus(500); }
 });
@@ -467,7 +470,7 @@ router.post('/evaluaciones/bulk', authMiddleware, async (req, res) => {
       await tx.request()
         .input("dni",   sql.VarChar(20), ev.postulante_dni)
         .input("fecha", sql.Date,        ev.fecha_evaluacion)
-        .input("nota",  sql.Int,         ev.nota)
+        .input("nota",  sql.Decimal(4,1), ev.nota)
         .query(`
 MERGE Evaluaciones_Formacion AS T
 USING (SELECT @dni AS dni, @fecha AS fecha) AS S
