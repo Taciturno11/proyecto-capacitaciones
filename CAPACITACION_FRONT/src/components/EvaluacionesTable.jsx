@@ -1,5 +1,16 @@
 export default function EvaluacionesTable({ postCtx, modo }) {
   const { dias, tablaDatos, evaluaciones, setNota, capCount, deserciones } = postCtx;
+  
+  // Debug logs
+  console.log('[EvaluacionesTable] Props recibidas:', { 
+    diasLength: dias?.length, 
+    tablaDatosLength: tablaDatos?.length, 
+    evaluacionesLength: evaluaciones?.length,
+    capCount,
+    desercionesLength: deserciones?.length
+  });
+  console.log('[EvaluacionesTable] Evaluaciones:', evaluaciones);
+  
   if (!tablaDatos.length) return null;
 
   // Helper para calcular promedio
