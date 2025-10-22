@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { buildApiUrl } from '../config/index.js';
 
 export default function Login() {
   const [usuario, setUsuario] = useState('');
@@ -12,7 +13,7 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      const res = await fetch('/api/login', {
+      const res = await fetch(buildApiUrl('/api/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ usuario, contrasena })
@@ -31,7 +32,7 @@ export default function Login() {
       localStorage.setItem('rol', data.rol);
       localStorage.removeItem('nombre');
       window.location.reload();
-    } catch (e) {
+    } catch {
       setError('Error de red');
       setLoading(false);
     }

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import PhotoUploadModal from './PhotoUploadModal';
+import { buildApiUrl } from '../config/index.js';
 
 export default function UserAvatar({ onLogout, marco = 'marco1.png' }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -19,7 +20,7 @@ export default function UserAvatar({ onLogout, marco = 'marco1.png' }) {
       const dni = localStorage.getItem('dni') || getDniFromToken();
       if (!dni) return;
 
-      const response = await fetch(`/api/fotos-perfil/${dni}`, {
+      const response = await fetch(buildApiUrl(`/api/fotos-perfil/${dni}`), {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }

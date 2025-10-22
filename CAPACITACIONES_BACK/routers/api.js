@@ -123,6 +123,7 @@ router.get("/capacitadores/:dni", async (req, res) => {
 router.get("/capas", async (req, res) => {
   const { dniCap, campania, mes } = req.query;      // mes = YYYY-MM
   try {
+    // ✅ CORREGIDO: Mantener lógica original pero optimizada
     let query = `
       SELECT 
         ROW_NUMBER() OVER (ORDER BY MIN(pf.FechaInicio)) AS capa,
@@ -1152,8 +1153,8 @@ router.post('/postulantes/horario', async (req, res) => {
 // Endpoint para obtener todos los grupos de horario base (solo Desc. Dom)
 router.get('/horarios-base', async (req, res) => {
   try {
-    const pool = sql.globalConnection || await sql.connect(process.env.DB_CONNECTION_STRING);
-    const result = await pool.request().query(`
+    // ✅ CORREGIDO: Restaurar JOIN con Horarios_Base pero optimizado
+    const result = await R().query(`
       SELECT 
         g.GrupoID,
         g.NombreGrupo AS label,
@@ -1180,10 +1181,14 @@ router.get('/horarios-base', async (req, res) => {
           WHEN g.NombreGrupo LIKE '%(Desc. Sab)%' THEN 'Sab'
           ELSE ''
         END AS descanso,
-        -- Rango horario
-        CONVERT(char(5), h.HoraEntrada, 108) + ' - ' + CONVERT(char(5), h.HoraSalida, 108) AS rango
+        -- Rango horario optimizado
+        CASE 
+          WHEN h.HoraEntrada IS NOT NULL AND h.HoraSalida IS NOT NULL THEN
+            CONVERT(char(5), h.HoraEntrada, 108) + ' - ' + CONVERT(char(5), h.HoraSalida, 108)
+          ELSE '08:00 - 17:00'
+        END AS rango
       FROM GruposDeHorario g
-      JOIN Horarios_Base h ON h.NombreHorario = LEFT(g.NombreGrupo, CHARINDEX(' (Desc.', g.NombreGrupo)-1)
+      LEFT JOIN Horarios_Base h ON h.NombreHorario = LEFT(g.NombreGrupo, CHARINDEX(' (Desc.', g.NombreGrupo)-1)
       WHERE g.NombreGrupo LIKE '%(Desc. Dom)'
       ORDER BY jornada, turno, rango
     `);

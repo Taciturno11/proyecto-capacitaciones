@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { buildApiUrl } from '../config/index.js';
 
 export default function PhotoUploadModal({ isOpen, onClose, onPhotoUpdate }) {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -21,7 +22,7 @@ export default function PhotoUploadModal({ isOpen, onClose, onPhotoUpdate }) {
       const dni = localStorage.getItem('dni') || getDniFromToken();
       if (!dni) return;
 
-      const response = await fetch(`/api/fotos-perfil/${dni}`, {
+      const response = await fetch(buildApiUrl(`/api/fotos-perfil/${dni}`), {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -86,7 +87,7 @@ export default function PhotoUploadModal({ isOpen, onClose, onPhotoUpdate }) {
       formData.append('foto', selectedFile);
 
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/fotos-perfil/upload', {
+      const response = await fetch(buildApiUrl('/api/fotos-perfil/upload'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -128,7 +129,7 @@ export default function PhotoUploadModal({ isOpen, onClose, onPhotoUpdate }) {
       const dni = localStorage.getItem('dni') || getDniFromToken();
       const token = localStorage.getItem('token');
       
-      const response = await fetch(`/api/fotos-perfil/${dni}`, {
+      const response = await fetch(buildApiUrl(`/api/fotos-perfil/${dni}`), {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`

@@ -1,5 +1,6 @@
 import React, { useState, useRef } from "react";
 import { createPortal } from "react-dom";
+import { buildApiUrl } from '../config/index.js';
 
 function PopoverPortal({ anchorRef, children, open }) {
   const [pos, setPos] = useState({ top: 0, left: 0, width: 0 });
@@ -125,7 +126,7 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, CampañaID,
         capa_numero: p.capa_numero || capaNum || 1
       }];
       try {
-        await fetch("/api/asistencia/bulk", {
+        await fetch(buildApiUrl("/api/asistencia/bulk"), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -145,7 +146,7 @@ export default function AsistenciasTable({ postCtx, compact, dniCap, CampañaID,
           fecha_inicio: fechaInicio, // <--- AGREGADO
           guardado: false
         }];
-        await fetch("/api/deserciones/bulk", {
+        await fetch(buildApiUrl("/api/deserciones/bulk"), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
