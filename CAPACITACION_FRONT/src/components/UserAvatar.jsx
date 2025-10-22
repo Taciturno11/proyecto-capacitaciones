@@ -90,7 +90,7 @@ export default function UserAvatar({ onLogout, marco = 'marco1.png' }) {
   };
 
   // Construir la URL absoluta para la foto de perfil
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+  const API_URL = import.meta.env.VITE_API_URL;
   const photoUrl = userPhoto?.startsWith('/uploads/')
     ? API_URL + userPhoto
     : userPhoto;

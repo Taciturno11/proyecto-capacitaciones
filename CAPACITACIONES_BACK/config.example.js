@@ -10,7 +10,7 @@ module.exports = {
   SQL_PORT: 1433,
   
   // Puerto del servidor
-  PORT: 3001,
+  PORT: 3003,
   
   // Clave secreta para JWT (cambia por una clave segura)
   JWT_SECRET: 'tu_clave_secreta_muy_segura_aqui'

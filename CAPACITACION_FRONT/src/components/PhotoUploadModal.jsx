@@ -154,7 +154,7 @@ export default function PhotoUploadModal({ isOpen, onClose, onPhotoUpdate }) {
   if (!isOpen) return null;
 
   // Construir la URL absoluta para la foto de perfil actual
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+  const API_URL = import.meta.env.VITE_API_URL;
   const photoUrl = currentPhoto?.startsWith('/uploads/')
     ? API_URL + currentPhoto
     : currentPhoto;
